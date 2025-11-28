@@ -35,7 +35,7 @@ const ADMIN_EMAILS = [
   'shenglanko@wagor.tc.edu.tw', 
   'karencheng@wagor.tc.edu.tw',
   'sandy@wagor.tc.edu.tw', 
-  'torreswang@wagor.tc.edu.tw', 
+  'torreswang@wagor.tc.edu.tw',
 ];
 
 // 2. DOMAIN RESTRICTION:
@@ -69,23 +69,24 @@ const App: React.FC = () => {
   // Derived
   const selectedClassroom = classrooms.find(c => c.id === selectedClassroomId);
   
-  // Check Admin Role
-  const isAdmin = isGuest ? false : (currentUser?.email ? ADMIN_EMAILS.includes(currentUser.email) : false);
+  // Check Admin Role (Case Insensitive)
+  const isAdmin = isGuest ? false : (currentUser?.email ? ADMIN_EMAILS.map(e => e.toLowerCase()).includes(currentUser.email.toLowerCase()) : false);
 
   // --- Auth Effect ---
   useEffect(() => {
     // Listen for auth state changes (Login/Logout)
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
-        const userEmail = user.email || '';
-        const isAdminUser = ADMIN_EMAILS.includes(userEmail);
+        const userEmail = (user.email || '').toLowerCase();
+        const isAdminUser = ADMIN_EMAILS.map(e => e.toLowerCase()).includes(userEmail);
 
         // --- DOMAIN RESTRICTION CHECK ---
         if (ALLOWED_DOMAIN && !isAdminUser) {
-           const requiredDomain = '@' + ALLOWED_DOMAIN;
+           const requiredDomain = '@' + ALLOWED_DOMAIN.toLowerCase();
            if (!userEmail.endsWith(requiredDomain)) {
               // Sign out immediately if domain doesn't match
               await auth.signOut();
+              setCurrentUser(null);
               alert(`Access Denied.\n\nOnly users with school emails (${requiredDomain}) are allowed to access this system.`);
               setIsAuthLoading(false);
               return;
