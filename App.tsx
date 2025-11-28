@@ -15,7 +15,8 @@ import {
   BookOpen,
   Loader2,
   LogOut,
-  User as UserIcon
+  User as UserIcon,
+  ShieldAlert
 } from 'lucide-react';
 
 import { WeekCalendar } from './components/WeekCalendar';
@@ -31,7 +32,7 @@ import firebase from 'firebase/compat/app';
 
 // --- CONFIGURATION ---
 
-// 1. ADMINS: These emails have full access (Add/Edit Classrooms, Delete any booking).
+// 1. ADMINS: These emails have full access.
 const ADMIN_EMAILS = [
   'shenglanko@wagor.tc.edu.tw', 
   'karencheng@wagor.tc.edu.tw',
@@ -40,7 +41,6 @@ const ADMIN_EMAILS = [
 ];
 
 // 2. DOMAIN RESTRICTION:
-// Non-admin users MUST have an email ending with this domain.
 const ALLOWED_DOMAIN = 'wagor.tc.edu.tw'; 
 
 const App: React.FC = () => {
@@ -49,6 +49,9 @@ const App: React.FC = () => {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
+  
+  // SECURITY STATE
+  const [isAccessDenied, setIsAccessDenied] = useState(false);
   
   // --- App State ---
   const [isLoading, setIsLoading] = useState(false);
@@ -73,7 +76,7 @@ const App: React.FC = () => {
   const isAdmin = isGuest ? false : (currentUser?.email ? ADMIN_EMAILS.map(e => e.toLowerCase()).includes(currentUser.email.toLowerCase()) : false);
 
   // Helper: Check Permissions
-  const checkUserPermissions = async (user: firebase.User | null): Promise<boolean> => {
+  const checkUserPermissions = (user: firebase.User | null): boolean => {
     if (!user || !user.email) return false;
 
     const userEmail = user.email.toLowerCase();
@@ -86,7 +89,6 @@ const App: React.FC = () => {
     if (ALLOWED_DOMAIN) {
       const requiredDomain = '@' + ALLOWED_DOMAIN.toLowerCase();
       if (!userEmail.endsWith(requiredDomain)) {
-        console.log(`[Auth Block] Email ${userEmail} does not match domain ${requiredDomain}`);
         return false;
       }
     }
@@ -96,20 +98,24 @@ const App: React.FC = () => {
 
   // --- Auth Effect ---
   useEffect(() => {
-    // Listen for auth state changes (Login/Logout)
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
-        const isAllowed = await checkUserPermissions(user);
+        // PERMISSION CHECK
+        const isAllowed = checkUserPermissions(user);
 
         if (!isAllowed) {
-           // STRICT LOGOUT
-           await auth.signOut();
-           setCurrentUser(null);
-           alert(`Access Denied.\n\nOnly users with school emails (@${ALLOWED_DOMAIN}) are allowed to access this system.`);
+           setIsAccessDenied(true);
+           setCurrentUser({
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName,
+              photoURL: user.photoURL
+           });
            setIsAuthLoading(false);
            return;
         }
 
+        setIsAccessDenied(false);
         setCurrentUser({
           uid: user.uid,
           email: user.email,
@@ -117,11 +123,11 @@ const App: React.FC = () => {
           photoURL: user.photoURL
         });
         setIsGuest(false);
-        // Load data only after login
         loadData();
       } else {
         if (!isGuest) {
           setCurrentUser(null);
+          setIsAccessDenied(false);
           setBookings([]);
           setClassrooms([]);
         }
@@ -156,37 +162,27 @@ const App: React.FC = () => {
     e.preventDefault();
     try {
       if (window.location.protocol === 'file:') {
-        alert("Authentication Error: You are running this file directly from your computer (file://).\n\nFirebase Auth requires a web server (http:// or https://).\nPlease run 'npm run dev' or deploy to Firebase Hosting.");
+        alert("Authentication Error: You are running this file directly from your computer (file://).\n\nFirebase Auth requires a web server.");
         return;
       }
       
       if (isLoginLoading) return;
       setIsLoginLoading(true);
       
-      // Force persistence to LOCAL in services/firebase.ts is sufficient.
-      
-      // Use Popup for cleaner SPA experience and to avoid redirect loops
       const result = await auth.signInWithPopup(googleProvider);
       
       // IMMEDIATE SECURITY CHECK
       if (result.user) {
-        console.log("Checking permissions for:", result.user.email);
-        const isAllowed = await checkUserPermissions(result.user);
+        const isAllowed = checkUserPermissions(result.user);
         if (!isAllowed) {
-          console.warn("Immediate block for:", result.user.email);
-          await auth.signOut();
-          setCurrentUser(null); // Clear state immediately
-          alert(`Access Denied.\n\nYou must use a school email (@${ALLOWED_DOMAIN}).`);
-          return;
+          setIsAccessDenied(true);
+          // Don't alert here, let the UI handle it
         }
       }
       
     } catch (error: any) {
       console.error("Login initiation failed", error);
       alert(`Login failed: ${error.message}`);
-      if (error.code === 'auth/unauthorized-domain') {
-        alert(`Configuration Error:\n\nThe current domain (${window.location.hostname}) is not authorized for Google Sign-In.\n\nPlease go to Firebase Console -> Authentication -> Settings -> Authorized Domains and add: ${window.location.hostname}`);
-      }
     } finally {
       setIsLoginLoading(false);
     }
@@ -194,6 +190,7 @@ const App: React.FC = () => {
 
   const handleGuestLogin = () => {
     setIsGuest(true);
+    setIsAccessDenied(false);
     setCurrentUser({
       uid: 'guest-' + Math.random().toString(36).substr(2, 9),
       email: 'guest@demo.com',
@@ -207,15 +204,15 @@ const App: React.FC = () => {
     if (isGuest) {
       setIsGuest(false);
       setCurrentUser(null);
-      setBookings([]);
-      setClassrooms([]);
+      setIsAccessDenied(false);
     } else {
       await auth.signOut();
+      setCurrentUser(null);
+      setIsAccessDenied(false);
     }
   };
 
   // --- Handlers ---
-
   const handlePrevWeek = () => setCurrentDate(addWeeks(currentDate, -1));
   const handleNextWeek = () => setCurrentDate(addWeeks(currentDate, 1));
   const handleJumpToday = () => setCurrentDate(new Date());
@@ -275,15 +272,9 @@ const App: React.FC = () => {
       return;
     }
     setEditingBooking(undefined);
-    
-    // Create new Date via setHours (date-fns returns new date)
     const time = setHours(date, hour);
-    time.setMinutes(0); // Native mutate
-
-    setNewBookingParams({
-      date,
-      time
-    });
+    time.setMinutes(0);
+    setNewBookingParams({ date, time });
     setIsBookingModalOpen(true);
   };
 
@@ -293,14 +284,11 @@ const App: React.FC = () => {
     setIsBookingModalOpen(true);
   };
 
-  // Handle Drag and Drop Move
   const handleBookingMove = async (bookingId: string, newStartTime: Date) => {
-    if (isGuest) return; // Prevent guest interaction
-
+    if (isGuest) return;
     const booking = bookings.find(b => b.id === bookingId);
     if (!booking) return;
 
-    // Permission Check
     if (!isAdmin && booking.userId !== currentUser?.uid) {
       alert("You can only move your own bookings.");
       return;
@@ -308,8 +296,6 @@ const App: React.FC = () => {
 
     const durationMinutes = differenceInMinutes(booking.endTime, booking.startTime);
     const newEndTime = addMinutes(newStartTime, durationMinutes);
-
-    // Check for conflicts
     const conflict = isOverlap(newStartTime, newEndTime, booking.classroomId, bookings, booking.id);
     
     if (conflict) {
@@ -317,10 +303,8 @@ const App: React.FC = () => {
       return;
     }
 
-    // Optimistic Update
     const originalBookings = [...bookings];
     const updatedBooking = { ...booking, startTime: newStartTime, endTime: newEndTime };
-    
     setBookings(prev => prev.map(b => b.id === bookingId ? updatedBooking : b));
 
     try {
@@ -331,21 +315,17 @@ const App: React.FC = () => {
     }
   };
 
-  // Handle Resize
   const handleBookingResize = async (bookingId: string, newEndTime: Date) => {
-    if (isGuest) return; // Prevent guest interaction
-
+    if (isGuest) return;
     const booking = bookings.find(b => b.id === bookingId);
     if (!booking) return;
 
-    // Permission Check
     if (!isAdmin && booking.userId !== currentUser?.uid) {
       alert("You can only resize your own bookings.");
       return;
     }
 
     const conflict = isOverlap(booking.startTime, newEndTime, booking.classroomId, bookings, booking.id);
-    
     if (conflict) {
       alert("Cannot resize booking: Overlaps with existing booking.");
       return;
@@ -353,7 +333,6 @@ const App: React.FC = () => {
 
     const originalBookings = [...bookings];
     const updatedBooking = { ...booking, endTime: newEndTime };
-    
     setBookings(prev => prev.map(b => b.id === bookingId ? updatedBooking : b));
 
     try {
@@ -382,7 +361,7 @@ const App: React.FC = () => {
       type: data.type!,
       color: data.color!,
       seriesId: data.seriesId, 
-      userId: currentUser.uid, // Stamp with current user
+      userId: currentUser.uid, 
       userEmail: currentUser.email || 'Unknown',
     };
 
@@ -438,7 +417,8 @@ const App: React.FC = () => {
     }
   };
 
-  // --- Render Loading State ---
+  // --- RENDERING ---
+
   if (isAuthLoading) {
      return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-neu-base text-gray-500 gap-4">
@@ -447,7 +427,34 @@ const App: React.FC = () => {
     );
   }
 
-  // --- Render Login ---
+  // >>> ACCESS DENIED SCREEN <<<
+  if (isAccessDenied) {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center bg-neu-base p-6">
+        <div className="bg-neu-base rounded-3xl shadow-neu-pressed p-8 max-w-md w-full text-center border-l-4 border-red-500 flex flex-col items-center">
+          <div className="p-4 bg-red-50 rounded-full mb-6 text-red-500 shadow-inner">
+             <ShieldAlert size={48} />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h1>
+          <p className="text-gray-500 mb-6">
+            You are logged in as <strong>{currentUser?.email}</strong>.
+          </p>
+          <p className="text-sm text-gray-400 mb-8 bg-gray-100 p-4 rounded-xl">
+            This system is restricted to users with <br/>
+            <strong className="text-gray-600">@{ALLOWED_DOMAIN}</strong> emails.
+          </p>
+          <button 
+            onClick={handleLogout}
+            className="px-6 py-3 bg-red-500 text-white font-bold rounded-xl shadow-lg hover:bg-red-600 transition-all w-full flex items-center justify-center gap-2"
+          >
+            <LogOut size={18} /> Sign Out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Login Screen
   if (!currentUser) {
     return (
       <Login 
@@ -458,6 +465,7 @@ const App: React.FC = () => {
     );
   }
 
+  // Loading Data Screen
   if (isLoading) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-neu-base text-gray-500 gap-4">
@@ -467,9 +475,10 @@ const App: React.FC = () => {
     );
   }
 
+  // MAIN APP
   return (
     <div className="flex flex-col h-full bg-neu-base text-slate-700 font-sans">
-      {/* --- Top Navigation Bar --- */}
+      {/* Header */}
       <header className="bg-neu-base z-30 px-8 py-4 flex flex-col md:flex-row items-center justify-between no-print h-auto md:h-20 shrink-0 shadow-sm relative gap-4">
         <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8 w-full md:w-auto">
           <div className="flex items-center gap-3 text-gray-700">
@@ -478,130 +487,59 @@ const App: React.FC = () => {
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-800">Classroom Booking</h1>
           </div>
-
           <div className="h-px w-full md:h-10 md:w-px bg-gray-300/50 shadow-[1px_0_0_#fff]"></div>
-
           <div className="flex items-center gap-4 w-full md:w-auto justify-center">
-             <button 
-                onClick={handlePrevWeek}
-                className="w-10 h-10 flex items-center justify-center rounded-xl bg-neu-base shadow-neu text-gray-600 hover:text-primary-600 active:shadow-neu-pressed transition-all"
-             >
-               <ChevronLeft size={20} />
-             </button>
-             
+             <button onClick={handlePrevWeek} className="w-10 h-10 flex items-center justify-center rounded-xl bg-neu-base shadow-neu text-gray-600 hover:text-primary-600 active:shadow-neu-pressed transition-all"><ChevronLeft size={20} /></button>
              <div className="flex flex-col items-center min-w-[160px] px-4 py-2 bg-neu-base rounded-xl shadow-neu-pressed">
                 <span className="text-sm font-bold text-gray-800 uppercase tracking-wide">{formatMonthYear(currentDate)}</span>
                 <span className="text-xs text-primary-600 font-medium">Week {format(currentDate, 'w')}</span>
              </div>
-             
-             <button 
-                onClick={handleNextWeek}
-                className="w-10 h-10 flex items-center justify-center rounded-xl bg-neu-base shadow-neu text-gray-600 hover:text-primary-600 active:shadow-neu-pressed transition-all"
-             >
-               <ChevronRight size={20} />
-             </button>
-             
-             <button 
-               onClick={handleJumpToday}
-               className="hidden sm:block ml-4 px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-600 bg-neu-base rounded-xl shadow-neu hover:text-primary-600 active:shadow-neu-pressed transition-all"
-             >
-               This Week
-             </button>
-             
+             <button onClick={handleNextWeek} className="w-10 h-10 flex items-center justify-center rounded-xl bg-neu-base shadow-neu text-gray-600 hover:text-primary-600 active:shadow-neu-pressed transition-all"><ChevronRight size={20} /></button>
+             <button onClick={handleJumpToday} className="hidden sm:block ml-4 px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-600 bg-neu-base rounded-xl shadow-neu hover:text-primary-600 active:shadow-neu-pressed transition-all">This Week</button>
              <div className="relative ml-2">
-                <input 
-                  type="date" 
-                  className="w-10 h-10 opacity-0 absolute inset-0 cursor-pointer z-10"
-                  onChange={handleDatePick}
-                />
-                <button className="w-10 h-10 flex items-center justify-center rounded-xl bg-neu-base shadow-neu text-gray-500 hover:text-primary-600 active:shadow-neu-pressed transition-all" title="Jump to date">
-                  <Calendar size={18} />
-                </button>
+                <input type="date" className="w-10 h-10 opacity-0 absolute inset-0 cursor-pointer z-10" onChange={handleDatePick} />
+                <button className="w-10 h-10 flex items-center justify-center rounded-xl bg-neu-base shadow-neu text-gray-500 hover:text-primary-600 active:shadow-neu-pressed transition-all"><Calendar size={18} /></button>
              </div>
           </div>
         </div>
 
         <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
           <div className="relative flex-1 md:flex-none">
-            <select
-              value={selectedClassroomId}
-              onChange={(e) => setSelectedClassroomId(e.target.value)}
-              className="appearance-none pl-5 pr-10 py-2.5 bg-neu-base rounded-xl shadow-neu-pressed text-sm font-bold text-gray-700 outline-none focus:ring-1 focus:ring-primary-400 w-full md:min-w-[200px] cursor-pointer"
-            >
+            <select value={selectedClassroomId} onChange={(e) => setSelectedClassroomId(e.target.value)} className="appearance-none pl-5 pr-10 py-2.5 bg-neu-base rounded-xl shadow-neu-pressed text-sm font-bold text-gray-700 outline-none focus:ring-1 focus:ring-primary-400 w-full md:min-w-[200px] cursor-pointer">
               {classrooms.length === 0 && <option value="">No Classrooms</option>}
-              {classrooms.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
+              {classrooms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                <ChevronLeft size={16} className="-rotate-90" />
-            </div>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500"><ChevronLeft size={16} className="-rotate-90" /></div>
           </div>
 
           <div className="flex gap-4">
-            {/* ADMIN ONLY: Settings Button */}
             {isAdmin && (
-              <button 
-                  onClick={() => setIsClassroomModalOpen(true)}
-                  className="w-10 h-10 flex items-center justify-center rounded-xl bg-neu-base shadow-neu text-gray-500 hover:text-gray-800 active:shadow-neu-pressed transition-all"
-                  title="Manage Classrooms (Admin)"
-              >
-                  <Settings size={20} />
-              </button>
+              <button onClick={() => setIsClassroomModalOpen(true)} className="w-10 h-10 flex items-center justify-center rounded-xl bg-neu-base shadow-neu text-gray-500 hover:text-gray-800 active:shadow-neu-pressed transition-all" title="Manage Classrooms (Admin)"><Settings size={20} /></button>
             )}
-
-            <button 
-                onClick={handlePrint}
-                className="w-10 h-10 flex sm:w-auto sm:px-5 sm:py-2.5 items-center justify-center gap-2 bg-neu-base text-gray-700 text-sm font-bold rounded-xl shadow-neu hover:text-primary-600 active:shadow-neu-pressed transition-all"
-                title="Print Schedule"
-            >
-                <Printer size={18} />
-                <span className="hidden sm:inline">Print</span>
+            <button onClick={handlePrint} className="w-10 h-10 flex sm:w-auto sm:px-5 sm:py-2.5 items-center justify-center gap-2 bg-neu-base text-gray-700 text-sm font-bold rounded-xl shadow-neu hover:text-primary-600 active:shadow-neu-pressed transition-all" title="Print Schedule">
+                <Printer size={18} /><span className="hidden sm:inline">Print</span>
             </button>
-
-             {/* User Profile */}
             <div className="group relative flex items-center justify-center" title={currentUser.displayName || currentUser.email || 'User'}>
                <div className="w-10 h-10 flex items-center justify-center rounded-full bg-neu-base shadow-neu overflow-hidden border-2 border-transparent hover:border-white/50 transition-all">
-                 {currentUser.photoURL ? (
-                   <img src={currentUser.photoURL} alt="User" className="w-full h-full object-cover" />
-                 ) : (
-                   <UserIcon size={20} className="text-gray-500" />
-                 )}
+                 {currentUser.photoURL ? <img src={currentUser.photoURL} alt="User" className="w-full h-full object-cover" /> : <UserIcon size={20} className="text-gray-500" />}
                </div>
-               {/* Tooltip for user info on hover */}
-               <div className="absolute right-0 top-12 w-auto whitespace-nowrap bg-gray-800 text-white text-xs rounded px-2 py-1 hidden group-hover:block z-50 shadow-lg">
-                  {currentUser.email} {isAdmin ? '(Admin)' : ''}
-               </div>
+               <div className="absolute right-0 top-12 w-auto whitespace-nowrap bg-gray-800 text-white text-xs rounded px-2 py-1 hidden group-hover:block z-50 shadow-lg">{currentUser.email} {isAdmin ? '(Admin)' : ''}</div>
             </div>
-
-            {/* Explicit Sign Out Button */}
-            <button 
-              onClick={handleLogout}
-              className="w-10 h-10 flex items-center justify-center rounded-xl bg-neu-base shadow-neu text-red-500 hover:text-red-600 active:shadow-neu-pressed transition-all"
-              title="Sign Out"
-            >
-              <LogOut size={20} />
-            </button>
+            <button onClick={handleLogout} className="w-10 h-10 flex items-center justify-center rounded-xl bg-neu-base shadow-neu text-red-500 hover:text-red-600 active:shadow-neu-pressed transition-all" title="Sign Out"><LogOut size={20} /></button>
           </div>
         </div>
       </header>
 
-      {/* --- Print Header (Visible only when printing) --- */}
+      {/* Print Header */}
       <div className="hidden print-only p-6 border-b border-gray-300">
          <h1 className="text-3xl font-bold mb-4">Classroom Booking Schedule</h1>
          <div className="flex justify-between items-end border-t border-gray-200 pt-4">
-            <div>
-              <p className="text-sm text-gray-500 uppercase">Classroom</p>
-              <p className="text-2xl font-bold">{selectedClassroom?.name}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-500 uppercase">Period</p>
-              <p className="text-xl font-semibold">{formatMonthYear(currentDate)}</p>
-            </div>
+            <div><p className="text-sm text-gray-500 uppercase">Classroom</p><p className="text-2xl font-bold">{selectedClassroom?.name}</p></div>
+            <div className="text-right"><p className="text-sm text-gray-500 uppercase">Period</p><p className="text-xl font-semibold">{formatMonthYear(currentDate)}</p></div>
          </div>
       </div>
 
-      {/* --- Main Content --- */}
+      {/* Main Content */}
       <main className="flex-1 overflow-hidden p-2 sm:p-6 md:p-8 print:p-0 print:overflow-visible print:h-auto print:block">
         <WeekCalendar 
           currentDate={currentDate}
@@ -615,12 +553,8 @@ const App: React.FC = () => {
         />
       </main>
 
-      {/* --- Modals --- */}
-      <Modal 
-        isOpen={isBookingModalOpen} 
-        onClose={() => setIsBookingModalOpen(false)}
-        title={editingBooking ? "Edit Booking" : "New Booking"}
-      >
+      {/* Modals */}
+      <Modal isOpen={isBookingModalOpen} onClose={() => setIsBookingModalOpen(false)} title={editingBooking ? "Edit Booking" : "New Booking"}>
         <BookingForm
           initialDate={newBookingParams?.date}
           initialStartTime={newBookingParams?.time}
@@ -637,11 +571,7 @@ const App: React.FC = () => {
         />
       </Modal>
 
-      <Modal 
-        isOpen={isClassroomModalOpen} 
-        onClose={() => setIsClassroomModalOpen(false)}
-        title="Manage Classrooms"
-      >
+      <Modal isOpen={isClassroomModalOpen} onClose={() => setIsClassroomModalOpen(false)} title="Manage Classrooms">
         <ClassroomManager 
           classrooms={classrooms}
           onAdd={handleAddClassroom}
