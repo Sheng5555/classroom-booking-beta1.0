@@ -33,7 +33,9 @@ import { auth, googleProvider } from './services/firebase';
 // 1. ADMINS: These emails have full access (Add/Edit Classrooms, Delete any booking).
 const ADMIN_EMAILS = [
   'shenglanko@wagor.tc.edu.tw', 
-  'latex.psychology@gmail.com', 
+  'karencheng@wagor.tc.edu.tw',
+  'sandy@wagor.tc.edu.tw', 
+  'torreswang@wagor.tc.edu.tw', 
 ];
 
 // 2. DOMAIN RESTRICTION:
