@@ -11,15 +11,21 @@ import {
   addDays,
   isWeekend
 } from 'date-fns';
-import startOfWeek from 'date-fns/startOfWeek';
-import subWeeks from 'date-fns/subWeeks';
-import setMinutes from 'date-fns/setMinutes';
-import startOfDay from 'date-fns/startOfDay';
 
 import { Booking, BookingType } from '../types';
 
+// Local implementation of startOfWeek (Monday start) since import is failing
+const getStartOfWeek = (date: Date) => {
+  const result = new Date(date);
+  const day = result.getDay();
+  const diff = (day === 0 ? 6 : day - 1);
+  result.setDate(result.getDate() - diff);
+  result.setHours(0, 0, 0, 0);
+  return result;
+};
+
 export const getWeekDays = (date: Date) => {
-  const start = startOfWeek(date, { weekStartsOn: 1 }); // Monday start
+  const start = getStartOfWeek(date);
   const end = endOfWeek(date, { weekStartsOn: 1 });
   return eachDayOfInterval({ start, end });
 };

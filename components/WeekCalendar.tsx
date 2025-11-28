@@ -8,7 +8,6 @@ import {
 } from '../utils/dateUtils';
 import { HOURS_OF_OPERATION, Booking, Classroom } from '../types';
 import { isSameDay, differenceInMinutes, isWeekend, setHours } from 'date-fns';
-import setMinutes from 'date-fns/setMinutes';
 import { Clock, Users, MapPin } from 'lucide-react';
 
 interface WeekCalendarProps {
@@ -19,6 +18,7 @@ interface WeekCalendarProps {
   onBookingClick: (booking: Booking) => void;
   onBookingMove: (bookingId: string, newStartTime: Date) => void;
   onBookingResize: (bookingId: string, newEndTime: Date) => void;
+  isGuest?: boolean;
 }
 
 export const WeekCalendar: React.FC<WeekCalendarProps> = ({
@@ -29,6 +29,7 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
   onBookingClick,
   onBookingMove,
   onBookingResize,
+  isGuest = false,
 }) => {
   const weekDays = getWeekDays(currentDate);
   const timeSlots = generateTimeSlots(HOURS_OF_OPERATION.start, HOURS_OF_OPERATION.end);
@@ -69,16 +70,19 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
 
   // Drag and Drop Handlers
   const handleDragStart = (e: React.DragEvent, bookingId: string) => {
+    if (isGuest) return;
     e.dataTransfer.setData('bookingId', bookingId);
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e: React.DragEvent) => {
+    if (isGuest) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
   };
 
   const handleDrop = (e: React.DragEvent, day: Date) => {
+    if (isGuest) return;
     e.preventDefault();
     const bookingId = e.dataTransfer.getData('bookingId');
     if (!bookingId) return;
@@ -104,6 +108,7 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
 
   // Resize Handlers
   const handleResizeStart = (e: React.MouseEvent, booking: Booking) => {
+    if (isGuest) return;
     e.stopPropagation(); // Prevent drag start
     e.preventDefault(); // Prevent selection
     setResizeState({
@@ -259,19 +264,23 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
                       const style = isResizing 
                           ? getBookingStyles({ ...booking, endTime: displayEndTime }) 
                           : getBookingStyles(booking);
+                      
+                      const canInteract = !isGuest;
 
                       return (
                         <div
                           key={booking.id}
-                          draggable={!isResizing} // Disable drag while resizing
+                          draggable={canInteract && !isResizing} // Disable drag while resizing
                           onDragStart={(e) => handleDragStart(e, booking.id)}
-                          className={`absolute inset-x-1.5 p-2 rounded-lg border-l-[3px] text-xs cursor-move shadow-sm hover:shadow-md transition-all z-10 overflow-hidden flex flex-col gap-0.5 ${booking.color} hover:brightness-95 active:scale-95 group`}
+                          className={`absolute inset-x-1.5 p-2 rounded-lg border-l-[3px] text-xs shadow-sm hover:shadow-md transition-all z-10 overflow-hidden flex flex-col gap-0.5 ${booking.color} hover:brightness-95 active:scale-95 group
+                            ${canInteract ? 'cursor-move' : 'cursor-default'}
+                          `}
                           style={style}
                           onClick={(e) => {
                             e.stopPropagation();
                             onBookingClick(booking);
                           }}
-                          title={`${booking.title} (${formatTime(booking.startTime)} - ${formatTime(displayEndTime)})\nDrag to move.`}
+                          title={`${booking.title} (${formatTime(booking.startTime)} - ${formatTime(displayEndTime)})\n${canInteract ? 'Drag to move.' : ''}`}
                         >
                           <div className="font-bold truncate text-sm pointer-events-none">{booking.title}</div>
                           <div className="opacity-90 flex items-center gap-1 truncate text-[10px] font-medium pointer-events-none">
@@ -290,13 +299,15 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
                           )}
 
                           {/* Resize Handle */}
-                          <div 
-                            className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize flex justify-center items-end opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/5"
-                            onMouseDown={(e) => handleResizeStart(e, booking)}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                             <div className="w-8 h-1 bg-black/20 rounded-full mb-1"></div>
-                          </div>
+                          {canInteract && (
+                            <div 
+                                className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize flex justify-center items-end opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/5"
+                                onMouseDown={(e) => handleResizeStart(e, booking)}
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <div className="w-8 h-1 bg-black/20 rounded-full mb-1"></div>
+                            </div>
+                          )}
                         </div>
                       )
                     })

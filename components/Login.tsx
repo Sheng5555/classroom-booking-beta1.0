@@ -8,8 +8,6 @@ interface LoginProps {
 }
 
 export const Login: React.FC<LoginProps> = ({ onLogin, onGuestLogin, isLoading }) => {
-  const currentDomain = window.location.hostname;
-
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-neu-base p-4">
       <div className="w-full max-w-md bg-neu-base rounded-3xl shadow-neu p-8 flex flex-col items-center text-center border border-white/20">
@@ -28,7 +26,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onGuestLogin, isLoading }
             className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-neu-base text-gray-700 font-bold rounded-xl shadow-neu hover:text-primary-600 hover:shadow-neu-pressed active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? (
-              <span>Signing in...</span>
+              <span>Redirecting...</span>
             ) : (
               <>
                 <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
@@ -51,17 +49,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onGuestLogin, isLoading }
             <User size={18} />
             <span>Continue as Guest</span>
           </button>
-        </div>
-
-        <div className="mt-8 p-4 bg-gray-50 rounded-xl border border-gray-200 text-left w-full">
-          <p className="text-xs font-bold text-gray-500 uppercase mb-1">Configuration Helper:</p>
-          <p className="text-xs text-gray-600 mb-2">
-            If Google Sign-In fails, add this exact domain to <br/>
-            <span className="font-mono bg-gray-200 px-1 rounded">Firebase Console &gt; Auth &gt; Settings &gt; Authorized Domains</span>
-          </p>
-          <code className="block w-full bg-gray-800 text-green-400 p-2 rounded text-xs break-all select-all cursor-text">
-            {currentDomain}
-          </code>
         </div>
       </div>
     </div>

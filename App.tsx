@@ -6,8 +6,6 @@ import {
   differenceInMinutes,
   addMinutes
 } from 'date-fns';
-import subWeeks from 'date-fns/subWeeks';
-import setMinutes from 'date-fns/setMinutes';
 import { 
   Calendar, 
   ChevronLeft, 
@@ -69,6 +67,20 @@ const App: React.FC = () => {
 
   // --- Auth Effect ---
   useEffect(() => {
+    // Check for redirect result on load (for signInWithRedirect)
+    auth.getRedirectResult().then((result) => {
+      if (result.user) {
+        console.log("Redirect login successful");
+      }
+    }).catch((error) => {
+      console.error("Redirect login failed", error);
+      if (error.code === 'auth/unauthorized-domain') {
+        alert(`Configuration Error:\n\nThe current domain (${window.location.hostname}) is not authorized for Google Sign-In.\n\nPlease go to Firebase Console -> Authentication -> Settings -> Authorized Domains and add: ${window.location.hostname}`);
+      } else {
+        alert(`Login failed: ${error.message}`);
+      }
+    });
+
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         setCurrentUser({
@@ -122,23 +134,16 @@ const App: React.FC = () => {
       
       if (isLoginLoading) return;
       setIsLoginLoading(true);
-      await auth.signInWithPopup(googleProvider);
-    } catch (error: any) {
-      console.error("Login failed", error);
-      setIsLoginLoading(false);
       
-      if (error.code === 'auth/popup-blocked') {
-        alert("Please allow popups for this website to sign in.");
-      } else if (error.code === 'auth/popup-closed-by-user') {
-        // User closed popup, no error needed
-      } else if (error.code === 'auth/unauthorized-domain') {
-        alert(`Configuration Error:\n\nThe current domain (${window.location.hostname}) is not authorized for Google Sign-In.\n\nPlease go to Firebase Console -> Authentication -> Settings -> Authorized Domains and add: ${window.location.hostname}`);
-      } else {
-        alert(`Login failed: ${error.message}`);
-      }
-    } finally {
+      // Use Redirect instead of Popup to avoid blocking issues
+      await auth.signInWithRedirect(googleProvider);
+      
+    } catch (error: any) {
+      console.error("Login initiation failed", error);
       setIsLoginLoading(false);
+      alert(`Login failed: ${error.message}`);
     }
+    // Note: finally() isn't called here because redirect navigates away
   };
 
   const handleGuestLogin = () => {
@@ -165,7 +170,7 @@ const App: React.FC = () => {
 
   // --- Handlers ---
 
-  const handlePrevWeek = () => setCurrentDate(subWeeks(currentDate, 1));
+  const handlePrevWeek = () => setCurrentDate(addWeeks(currentDate, -1));
   const handleNextWeek = () => setCurrentDate(addWeeks(currentDate, 1));
   const handleJumpToday = () => setCurrentDate(new Date());
   
@@ -224,9 +229,14 @@ const App: React.FC = () => {
       return;
     }
     setEditingBooking(undefined);
+    
+    // Create new Date via setHours (date-fns returns new date)
+    const time = setHours(date, hour);
+    time.setMinutes(0); // Native mutate
+
     setNewBookingParams({
       date,
-      time: setMinutes(setHours(date, hour), 0)
+      time
     });
     setIsBookingModalOpen(true);
   };

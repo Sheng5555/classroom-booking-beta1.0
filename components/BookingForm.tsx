@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Booking, BookingType, HOURS_OF_OPERATION, UserProfile } from '../types';
 import { format, addMinutes, setHours, addMonths } from 'date-fns';
-import setMinutes from 'date-fns/setMinutes';
-import { Trash2, AlertTriangle, Save, Calendar, X, Check, ChevronDown, Lock, User } from 'lucide-react';
+import { Trash2, AlertTriangle, Save, Calendar, Check, ChevronDown, Lock } from 'lucide-react';
 
 interface BookingFormProps {
   initialDate?: Date;
@@ -18,6 +17,7 @@ interface BookingFormProps {
   // Auth Props
   currentUser: UserProfile;
   isAdmin: boolean;
+  isGuest?: boolean;
 }
 
 export const BookingForm: React.FC<BookingFormProps> = ({
@@ -29,12 +29,13 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   onDelete,
   checkConflict,
   currentUser,
-  isAdmin
+  isAdmin,
+  isGuest = false
 }) => {
   // --- PERMISSION LOGIC ---
   const isOwner = existingBooking ? existingBooking.userId === currentUser.uid : true;
   const canEdit = isAdmin || isOwner;
-  const isReadOnly = existingBooking && !canEdit;
+  const isReadOnly = isGuest || (existingBooking && !canEdit);
 
   // Default states
   const [title, setTitle] = useState(existingBooking?.title || '');
@@ -43,8 +44,16 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   const [date, setDate] = useState(format(existingBooking?.startTime || initialDate || new Date(), 'yyyy-MM-dd'));
   
   // Time state handling
-  const defaultStart = initialStartTime || setMinutes(setHours(new Date(), 9), 0);
-  const [startTime, setStartTime] = useState(format(existingBooking?.startTime || defaultStart, 'HH:mm'));
+  // Note: setHours returns a new Date (date-fns), so we can mutate it with setMinutes (native)
+  const getDefaultStart = () => {
+    if (initialStartTime) return initialStartTime;
+    const d = setHours(new Date(), 9);
+    d.setMinutes(0);
+    return d;
+  };
+
+  const defaultStart = existingBooking?.startTime || getDefaultStart();
+  const [startTime, setStartTime] = useState(format(defaultStart, 'HH:mm'));
   const [endTime, setEndTime] = useState(format(existingBooking?.endTime || addMinutes(defaultStart, 60), 'HH:mm'));
   
   const [recurrenceEnd, setRecurrenceEnd] = useState(
@@ -160,9 +169,9 @@ export const BookingForm: React.FC<BookingFormProps> = ({
         <div className="bg-amber-50 text-amber-800 px-4 py-3 rounded-xl shadow-neu-pressed flex items-center gap-3 text-sm border-l-4 border-amber-500">
           <Lock size={18} />
           <div>
-            <p className="font-bold">View Only</p>
-            <p className="text-xs opacity-80">You can only edit bookings you created.</p>
-            {existingBooking?.userEmail && (
+            <p className="font-bold">{isGuest ? "Guest Mode (Read Only)" : "View Only"}</p>
+            <p className="text-xs opacity-80">{isGuest ? "Please Sign In to edit." : "You can only edit bookings you created."}</p>
+            {existingBooking?.userEmail && !isGuest && (
                <p className="text-xs mt-1">Created by: {existingBooking.userEmail}</p>
             )}
           </div>
