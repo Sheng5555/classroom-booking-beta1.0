@@ -67,20 +67,7 @@ const App: React.FC = () => {
 
   // --- Auth Effect ---
   useEffect(() => {
-    // Check for redirect result on load (for signInWithRedirect)
-    auth.getRedirectResult().then((result) => {
-      if (result.user) {
-        console.log("Redirect login successful");
-      }
-    }).catch((error) => {
-      console.error("Redirect login failed", error);
-      if (error.code === 'auth/unauthorized-domain') {
-        alert(`Configuration Error:\n\nThe current domain (${window.location.hostname}) is not authorized for Google Sign-In.\n\nPlease go to Firebase Console -> Authentication -> Settings -> Authorized Domains and add: ${window.location.hostname}`);
-      } else {
-        alert(`Login failed: ${error.message}`);
-      }
-    });
-
+    // Listen for auth state changes (Login/Logout)
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         setCurrentUser({
@@ -135,15 +122,18 @@ const App: React.FC = () => {
       if (isLoginLoading) return;
       setIsLoginLoading(true);
       
-      // Use Redirect instead of Popup to avoid blocking issues
-      await auth.signInWithRedirect(googleProvider);
+      // Use Popup for cleaner SPA experience and to avoid redirect loops
+      await auth.signInWithPopup(googleProvider);
       
     } catch (error: any) {
       console.error("Login initiation failed", error);
-      setIsLoginLoading(false);
       alert(`Login failed: ${error.message}`);
+      if (error.code === 'auth/unauthorized-domain') {
+        alert(`Configuration Error:\n\nThe current domain (${window.location.hostname}) is not authorized for Google Sign-In.\n\nPlease go to Firebase Console -> Authentication -> Settings -> Authorized Domains and add: ${window.location.hostname}`);
+      }
+    } finally {
+      setIsLoginLoading(false);
     }
-    // Note: finally() isn't called here because redirect navigates away
   };
 
   const handleGuestLogin = () => {
