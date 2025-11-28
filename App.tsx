@@ -32,12 +32,8 @@ import { auth, googleProvider } from './services/firebase';
 // Replace the emails below with the Google email addresses that should have Admin access.
 // Admins can: Add/Edit Classrooms, Delete any booking, Move any booking.
 const ADMIN_EMAILS = [
-  'shenglanko@wagor.tc.edu.tw', // <--- REPLACE THIS with your actual email
-  'karencheng@wagor.tc.edu.tw', 
-  'sandy@wagor.tc.edu.tw',
-  'torreswang@wagor.tc.edu.tw',
-  'vvn45@wagor.tc.edu.tw',
-  'hsuhua@wagor.tc.edu.tw',
+  'shenglanko@wagor.tc.edu.tw', 
+  'latex.psychology@gmail.com', // <--- REPLACE THIS with your actual email
 ];
 
 const App: React.FC = () => {
@@ -116,7 +112,8 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLogin = async () => {
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
       if (window.location.protocol === 'file:') {
         alert("Authentication Error: You are running this file directly from your computer (file://).\n\nFirebase Auth requires a web server (http:// or https://).\nPlease run 'npm run dev' or deploy to Firebase Hosting.");
@@ -125,6 +122,9 @@ const App: React.FC = () => {
       
       if (isLoginLoading) return;
       setIsLoginLoading(true);
+      
+      // Force persistence to LOCAL
+      await auth.setPersistence('local');
       
       // Use Popup for cleaner SPA experience and to avoid redirect loops
       await auth.signInWithPopup(googleProvider);
@@ -550,7 +550,7 @@ const App: React.FC = () => {
       </div>
 
       {/* --- Main Content --- */}
-      <main className="flex-1 overflow-hidden p-2 sm:p-6 md:p-8 print:p-0">
+      <main className="flex-1 overflow-hidden p-2 sm:p-6 md:p-8 print:p-0 print:overflow-visible print:h-auto">
         <WeekCalendar 
           currentDate={currentDate}
           selectedClassroom={selectedClassroom}
