@@ -26,7 +26,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onGuestLogin, isLoading }
             className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-neu-base text-gray-700 font-bold rounded-xl shadow-neu hover:text-primary-600 hover:shadow-neu-pressed active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? (
-              <span>Redirecting...</span>
+              <span>Connecting...</span>
             ) : (
               <>
                 <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
