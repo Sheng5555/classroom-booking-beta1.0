@@ -24,4 +24,8 @@ const app = firebase.apps.length > 0 ? firebase.app() : firebase.initializeApp(f
 // which is safer when bridging modules and global scripts.
 export const db = firebase.firestore();
 export const auth = firebase.auth();
+
+// Force local persistence to ensure the user stays logged in after a refresh
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
 export const googleProvider = new firebase.auth.GoogleAuthProvider();
