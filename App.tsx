@@ -32,8 +32,12 @@ import { auth, googleProvider } from './services/firebase';
 // Replace the emails below with the Google email addresses that should have Admin access.
 // Admins can: Add/Edit Classrooms, Delete any booking, Move any booking.
 const ADMIN_EMAILS = [
-  'shenglanko@wagor.tc.edu.tw', 
-  'latex.psychology@gmail.com', // <--- REPLACE THIS with your actual email
+  'shenglanko@wagor.tc.edu.tw', // <--- REPLACE THIS with your actual email
+  'karencheng@wagor.tc.edu.tw', 
+  'sandy@wagor.tc.edu.tw',
+  'torreswang@wagor.tc.edu.tw',
+  'vvn45@wagor.tc.edu.tw',
+  'hsuhua@wagor.tc.edu.tw',
 ];
 
 const App: React.FC = () => {
