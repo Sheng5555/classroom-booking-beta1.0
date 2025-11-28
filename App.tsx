@@ -27,6 +27,7 @@ import { Booking, Classroom, BookingType, UserProfile } from './types';
 import { generateRecurringBookings, isOverlap, formatMonthYear } from './utils/dateUtils';
 import { api } from './services/api';
 import { auth, googleProvider } from './services/firebase';
+import firebase from 'firebase/compat/app';
 
 // --- CONFIGURATION ---
 
@@ -40,7 +41,6 @@ const ADMIN_EMAILS = [
 
 // 2. DOMAIN RESTRICTION:
 // Non-admin users MUST have an email ending with this domain.
-// Set to empty string '' to disable this restriction.
 const ALLOWED_DOMAIN = 'wagor.tc.edu.tw'; 
 
 const App: React.FC = () => {
@@ -72,25 +72,42 @@ const App: React.FC = () => {
   // Check Admin Role (Case Insensitive)
   const isAdmin = isGuest ? false : (currentUser?.email ? ADMIN_EMAILS.map(e => e.toLowerCase()).includes(currentUser.email.toLowerCase()) : false);
 
+  // Helper: Check Permissions
+  const checkUserPermissions = async (user: firebase.User | null): Promise<boolean> => {
+    if (!user || !user.email) return false;
+
+    const userEmail = user.email.toLowerCase();
+    const isAdminUser = ADMIN_EMAILS.map(e => e.toLowerCase()).includes(userEmail);
+
+    // If Admin, always allow
+    if (isAdminUser) return true;
+
+    // If Domain Restriction is active
+    if (ALLOWED_DOMAIN) {
+      const requiredDomain = '@' + ALLOWED_DOMAIN.toLowerCase();
+      if (!userEmail.endsWith(requiredDomain)) {
+        console.log(`[Auth Block] Email ${userEmail} does not match domain ${requiredDomain}`);
+        return false;
+      }
+    }
+    
+    return true;
+  };
+
   // --- Auth Effect ---
   useEffect(() => {
     // Listen for auth state changes (Login/Logout)
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
-        const userEmail = (user.email || '').toLowerCase();
-        const isAdminUser = ADMIN_EMAILS.map(e => e.toLowerCase()).includes(userEmail);
+        const isAllowed = await checkUserPermissions(user);
 
-        // --- DOMAIN RESTRICTION CHECK ---
-        if (ALLOWED_DOMAIN && !isAdminUser) {
-           const requiredDomain = '@' + ALLOWED_DOMAIN.toLowerCase();
-           if (!userEmail.endsWith(requiredDomain)) {
-              // Sign out immediately if domain doesn't match
-              await auth.signOut();
-              setCurrentUser(null);
-              alert(`Access Denied.\n\nOnly users with school emails (${requiredDomain}) are allowed to access this system.`);
-              setIsAuthLoading(false);
-              return;
-           }
+        if (!isAllowed) {
+           // STRICT LOGOUT
+           await auth.signOut();
+           setCurrentUser(null);
+           alert(`Access Denied.\n\nOnly users with school emails (@${ALLOWED_DOMAIN}) are allowed to access this system.`);
+           setIsAuthLoading(false);
+           return;
         }
 
         setCurrentUser({
@@ -135,7 +152,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.SyntheticEvent) => {
     e.preventDefault();
     try {
       if (window.location.protocol === 'file:') {
@@ -149,7 +166,20 @@ const App: React.FC = () => {
       // Force persistence to LOCAL in services/firebase.ts is sufficient.
       
       // Use Popup for cleaner SPA experience and to avoid redirect loops
-      await auth.signInWithPopup(googleProvider);
+      const result = await auth.signInWithPopup(googleProvider);
+      
+      // IMMEDIATE SECURITY CHECK
+      if (result.user) {
+        console.log("Checking permissions for:", result.user.email);
+        const isAllowed = await checkUserPermissions(result.user);
+        if (!isAllowed) {
+          console.warn("Immediate block for:", result.user.email);
+          await auth.signOut();
+          setCurrentUser(null); // Clear state immediately
+          alert(`Access Denied.\n\nYou must use a school email (@${ALLOWED_DOMAIN}).`);
+          return;
+        }
+      }
       
     } catch (error: any) {
       console.error("Login initiation failed", error);
