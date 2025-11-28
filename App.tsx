@@ -28,13 +28,18 @@ import { generateRecurringBookings, isOverlap, formatMonthYear } from './utils/d
 import { api } from './services/api';
 import { auth, googleProvider } from './services/firebase';
 
-// --- ADMIN CONFIGURATION ---
-// Replace the emails below with the Google email addresses that should have Admin access.
-// Admins can: Add/Edit Classrooms, Delete any booking, Move any booking.
+// --- CONFIGURATION ---
+
+// 1. ADMINS: These emails have full access (Add/Edit Classrooms, Delete any booking).
 const ADMIN_EMAILS = [
   'shenglanko@wagor.tc.edu.tw', 
-  'latex.psychology@gmail.com', // <--- REPLACE THIS with your actual email
+  'latex.psychology@gmail.com', 
 ];
+
+// 2. DOMAIN RESTRICTION:
+// Non-admin users MUST have an email ending with this domain.
+// Set to empty string '' to disable this restriction.
+const ALLOWED_DOMAIN = 'wagor.tc.edu.tw'; 
 
 const App: React.FC = () => {
   // --- Auth State ---
@@ -68,8 +73,23 @@ const App: React.FC = () => {
   // --- Auth Effect ---
   useEffect(() => {
     // Listen for auth state changes (Login/Logout)
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
+        const userEmail = user.email || '';
+        const isAdminUser = ADMIN_EMAILS.includes(userEmail);
+
+        // --- DOMAIN RESTRICTION CHECK ---
+        if (ALLOWED_DOMAIN && !isAdminUser) {
+           const requiredDomain = '@' + ALLOWED_DOMAIN;
+           if (!userEmail.endsWith(requiredDomain)) {
+              // Sign out immediately if domain doesn't match
+              await auth.signOut();
+              alert(`Access Denied.\n\nOnly users with school emails (${requiredDomain}) are allowed to access this system.`);
+              setIsAuthLoading(false);
+              return;
+           }
+        }
+
         setCurrentUser({
           uid: user.uid,
           email: user.email,
@@ -123,8 +143,7 @@ const App: React.FC = () => {
       if (isLoginLoading) return;
       setIsLoginLoading(true);
       
-      // Force persistence to LOCAL
-      await auth.setPersistence('local');
+      // Force persistence to LOCAL in services/firebase.ts is sufficient.
       
       // Use Popup for cleaner SPA experience and to avoid redirect loops
       await auth.signInWithPopup(googleProvider);
@@ -550,7 +569,7 @@ const App: React.FC = () => {
       </div>
 
       {/* --- Main Content --- */}
-      <main className="flex-1 overflow-hidden p-2 sm:p-6 md:p-8 print:p-0 print:overflow-visible print:h-auto">
+      <main className="flex-1 overflow-hidden p-2 sm:p-6 md:p-8 print:p-0 print:overflow-visible print:h-auto print:block">
         <WeekCalendar 
           currentDate={currentDate}
           selectedClassroom={selectedClassroom}
