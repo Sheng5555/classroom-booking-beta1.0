@@ -1,0 +1,5 @@
+{
+  "name": "Classroom Scheduler Pro",
+  "description": "A comprehensive classroom booking system with weekly views, recurring bookings, conflict detection, and printing capabilities.",
+  "requestFramePermissions": []
+}

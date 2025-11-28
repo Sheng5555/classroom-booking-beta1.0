@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Classroom Booking</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+            colors: {
+              neu: {
+                base: '#e0e5ec',
+                dark: '#a3b1c6',
+                light: '#ffffff',
+              },
+              primary: {
+                50: '#eff6ff',
+                100: '#dbeafe',
+                500: '#3b82f6',
+                600: '#2563eb',
+                700: '#1d4ed8',
+              }
+            },
+            boxShadow: {
+              'neu': '9px 9px 16px rgb(163,177,198,0.6), -9px -9px 16px rgba(255,255,255, 0.5)',
+              'neu-sm': '5px 5px 10px rgb(163,177,198,0.6), -5px -5px 10px rgba(255,255,255, 0.5)',
+              'neu-pressed': 'inset 6px 6px 10px 0 rgb(163,177,198, 0.7), inset -6px -6px 10px 0 rgba(255,255,255, 0.8)',
+              'neu-pressed-sm': 'inset 3px 3px 5px 0 rgb(163,177,198, 0.7), inset -3px -3px 5px 0 rgba(255,255,255, 0.8)',
+            }
+          },
+        },
+      }
+    </script>
+
+    <!-- Firebase Globals (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+    <style>
+      @media print {
+        @page { size: landscape; margin: 0.5cm; }
+        .no-print { display: none !important; }
+        .print-only { display: block !important; }
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: white; }
+        .neu-shadow { box-shadow: none !important; border: 1px solid #ddd; }
+      }
+      body {
+        background-color: #e0e5ec;
+      }
+      /* Ensure draggable items show correct cursor */
+      [draggable="true"] {
+        cursor: move;
+        user-select: none;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.2.0?dev",
+    "react/": "https://esm.sh/react@18.2.0/",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?dev&deps=react@18.2.0",
+    "react-dom": "https://esm.sh/react-dom@18.2.0?dev&deps=react@18.2.0",
+    "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime?dev",
+    "firebase/compat/app": "data:text/javascript;charset=utf-8,export%20default%20window.firebase;",
+    "firebase/compat/auth": "data:text/javascript;charset=utf-8,export%20default%20window.firebase;",
+    "firebase/compat/firestore": "data:text/javascript;charset=utf-8,export%20default%20window.firebase;",
+    "date-fns": "https://esm.sh/date-fns@3.6.0",
+    "date-fns/": "https://esm.sh/date-fns@3.6.0/",
+    "lucide-react": "https://esm.sh/lucide-react@0.378.0?deps=react@18.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
+    "vite": "https://aistudiocdn.com/vite@^7.2.4",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-neu-base text-slate-700 antialiased h-screen overflow-hidden flex flex-col">
+    <div id="root" class="h-full flex flex-col"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
