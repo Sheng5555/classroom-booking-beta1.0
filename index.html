@@ -41,11 +41,59 @@
 
     <style>
       @media print {
-        @page { size: landscape; margin: 0.5cm; }
+        @page { 
+          size: A4 landscape; 
+          margin: 5mm; 
+        }
+        
         .no-print { display: none !important; }
         .print-only { display: block !important; }
-        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: white; }
-        .neu-shadow { box-shadow: none !important; border: 1px solid #ddd; }
+        
+        /* AGGRESSIVE RESET: Force block layout to allow natural page flow */
+        html, body, #root, main { 
+          width: 100% !important;
+          height: auto !important; 
+          min-height: 0 !important;
+          overflow: visible !important; 
+          background: white !important;
+          display: block !important; /* Overrides flex */
+          position: static !important;
+        }
+        
+        /* SCALING: Fit the tall calendar onto one A4 landscape page */
+        .print-scale-down {
+          zoom: 65%; /* Scales content down to ~65% size */
+          width: 100% !important;
+        }
+        
+        /* Reset specific scroll containers */
+        .overflow-auto, .overflow-hidden, .custom-scrollbar {
+          overflow: visible !important;
+          height: auto !important;
+          display: block !important;
+        }
+        
+        /* Disable sticky positioning during print */
+        .sticky { 
+          position: static !important; 
+        }
+        
+        /* Remove neumorphic borders/shadows for clean print */
+        .neu-shadow, .shadow-neu, .shadow-neu-pressed { 
+          box-shadow: none !important; 
+          border: 1px solid #eee !important;
+        }
+
+        /* Ensure grid lines print clearly */
+        .border-gray-200\/50 {
+          border-color: #ddd !important;
+        }
+        
+        /* Force background colors to print (for bookings) */
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
       }
       body {
         background-color: #e0e5ec;
@@ -59,14 +107,14 @@
 <script type="importmap">
 {
   "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "date-fns": "https://aistudiocdn.com/date-fns@^4.1.0",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
     "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
     "vite": "https://aistudiocdn.com/vite@^7.2.4",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0"
   }
 }
 </script>
