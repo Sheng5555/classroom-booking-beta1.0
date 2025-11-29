@@ -7,7 +7,7 @@ import {
   formatTime 
 } from '../utils/dateUtils';
 import { HOURS_OF_OPERATION, Booking, Classroom } from '../types';
-import { isSameDay, differenceInMinutes, isWeekend, setHours } from 'date-fns';
+import { isSameDay, differenceInMinutes, isWeekend } from 'date-fns';
 import { Clock, Users, MapPin } from 'lucide-react';
 
 interface WeekCalendarProps {
@@ -148,7 +148,6 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
 
     const handleMouseUp = () => {
       if (resizeState && tempResizeEndTime) {
-         // Defensive check to prevent crash if prop is missing
          if (onBookingResize) {
              onBookingResize(resizeState.bookingId, tempResizeEndTime);
          }
@@ -179,17 +178,17 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
   }
 
   return (
-    <div className="flex flex-col h-full bg-neu-base rounded-3xl shadow-neu overflow-hidden border border-white/40">
+    <div className="flex flex-col h-full bg-neu-base rounded-3xl shadow-neu overflow-hidden border border-white/40 print:shadow-none print:border-none print:rounded-none print:bg-white print:h-auto print:overflow-visible print:block print-scale-down">
       
       {/* Unified Scroll Container */}
-      <div className="flex-1 overflow-auto custom-scrollbar relative">
-        {/* Inner Wrapper to force min-width on Mobile */}
-        <div className="min-w-[800px] relative">
+      <div className="flex-1 overflow-auto custom-scrollbar relative print:overflow-visible print:h-auto print:block">
+        {/* Inner Wrapper */}
+        <div className="min-w-[800px] relative print:w-full print:min-w-0">
           
-          {/* Header Row: Days (Sticky Top) */}
-          <div className="grid grid-cols-8 divide-x divide-gray-200/50 bg-neu-base sticky top-0 z-30 shadow-sm">
-            {/* Top-Left Corner (Sticky Left + Top) */}
-            <div className="p-4 flex items-center justify-center text-gray-400 font-bold sticky left-0 top-0 z-50 bg-neu-base shadow-[4px_0_8px_rgba(0,0,0,0.02)]">
+          {/* Header Row: Days (Sticky Top - Static on Print) */}
+          <div className="grid grid-cols-8 divide-x divide-gray-200/50 bg-neu-base sticky top-0 z-30 shadow-sm print:static print:shadow-none print:bg-white print:border-b print:border-gray-300">
+            {/* Top-Left Corner */}
+            <div className="p-4 flex items-center justify-center text-gray-400 font-bold sticky left-0 top-0 z-50 bg-neu-base shadow-[4px_0_8px_rgba(0,0,0,0.02)] print:static print:shadow-none print:bg-white">
               <Clock size={20} />
             </div>
             
@@ -199,14 +198,14 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
               return (
                 <div 
                   key={idx} 
-                  className={`p-4 text-center transition-colors bg-neu-base z-30 ${isWknd ? 'bg-red-50/50' : ''}`}
+                  className={`p-4 text-center transition-colors bg-neu-base z-30 print:bg-white ${isWknd ? 'bg-red-50/50' : ''}`}
                 >
                   <div className={`text-xs font-bold uppercase mb-2 tracking-widest ${isToday(day) ? 'text-primary-600' : isWknd ? 'text-red-400' : 'text-gray-500'}`}>
                     {formatDateFull(day).split(',')[0]}
                   </div>
                   <div className={`
                     inline-flex items-center justify-center w-10 h-10 rounded-xl text-lg font-bold transition-all
-                    ${isToday(day) ? 'bg-neu-base text-primary-600 shadow-neu' : 'text-gray-700'}
+                    ${isToday(day) ? 'bg-neu-base text-primary-600 shadow-neu print:shadow-none print:border print:border-gray-200' : 'text-gray-700'}
                   `}>
                     {formatDateShort(day)}
                   </div>
@@ -216,12 +215,12 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
           </div>
 
           {/* Body: Time Slots & Grid */}
-          <div className="grid grid-cols-8 divide-x divide-gray-200/50">
+          <div className="grid grid-cols-8 divide-x divide-gray-200/50 print:divide-gray-300">
             
-            {/* Sidebar: Times (Sticky Left) */}
-            <div className="col-span-1 bg-neu-base z-20 sticky left-0 shadow-[4px_0_8px_rgba(0,0,0,0.02)]">
+            {/* Sidebar: Times (Sticky Left - Static on Print) */}
+            <div className="col-span-1 bg-neu-base z-20 sticky left-0 shadow-[4px_0_8px_rgba(0,0,0,0.02)] print:static print:shadow-none print:bg-white">
               {timeSlots.map((slot) => (
-                <div key={slot.hour} className="h-20 border-b border-gray-200/50 text-xs font-medium text-gray-400 text-right pr-4 pt-2 relative">
+                <div key={slot.hour} className="h-20 border-b border-gray-200/50 text-xs font-medium text-gray-400 text-right pr-4 pt-2 relative print:border-gray-300">
                   <span className="-top-3 relative">{slot.label}</span>
                 </div>
               ))}
@@ -233,7 +232,7 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
               return (
                 <div 
                   key={dayIdx} 
-                  className={`relative col-span-1 ${isWknd ? 'bg-red-100/30' : ''}`}
+                  className={`relative col-span-1 ${isWknd ? 'bg-red-100/30 print:bg-gray-50' : ''}`}
                   onDragOver={handleDragOver}
                   onDrop={(e) => handleDrop(e, day)}
                 >
@@ -242,13 +241,13 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
                   {timeSlots.map((slot) => (
                     <div 
                       key={slot.hour} 
-                      className={`h-20 border-b border-gray-200/50 transition-colors cursor-pointer group relative
+                      className={`h-20 border-b border-gray-200/50 transition-colors cursor-pointer group relative print:border-gray-300
                          ${isWknd ? 'hover:bg-red-100/40' : 'hover:bg-white/40'}
                       `}
                       onClick={() => onSlotClick(day, slot.hour)}
                     >
                         {/* Add Hint on Hover */}
-                        <div className="hidden group-hover:flex items-center justify-center h-full opacity-0 group-hover:opacity-40 transition-opacity text-gray-400">
+                        <div className="hidden group-hover:flex items-center justify-center h-full opacity-0 group-hover:opacity-40 transition-opacity text-gray-400 print:hidden">
                             <span className="text-3xl font-light">+</span>
                         </div>
                     </div>
@@ -260,7 +259,6 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
                     .map(booking => {
                       const isResizing = resizeState?.bookingId === booking.id;
                       const displayEndTime = isResizing && tempResizeEndTime ? tempResizeEndTime : booking.endTime;
-                      // While resizing, use the temp time to calculate height
                       const style = isResizing 
                           ? getBookingStyles({ ...booking, endTime: displayEndTime }) 
                           : getBookingStyles(booking);
@@ -270,9 +268,9 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
                       return (
                         <div
                           key={booking.id}
-                          draggable={canInteract && !isResizing} // Disable drag while resizing
+                          draggable={canInteract && !isResizing}
                           onDragStart={(e) => handleDragStart(e, booking.id)}
-                          className={`absolute inset-x-1.5 p-2 rounded-lg border-l-[3px] text-xs shadow-sm hover:shadow-md transition-all z-10 overflow-hidden flex flex-col gap-0.5 ${booking.color} hover:brightness-95 active:scale-95 group
+                          className={`absolute inset-x-1.5 p-2 rounded-lg border-l-[3px] text-xs shadow-sm hover:shadow-md transition-all z-10 overflow-hidden flex flex-col gap-0.5 ${booking.color} hover:brightness-95 active:scale-95 group print:shadow-none print:border print:border-gray-400
                             ${canInteract ? 'cursor-move' : 'cursor-default'}
                           `}
                           style={style}
@@ -280,7 +278,6 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
                             e.stopPropagation();
                             onBookingClick(booking);
                           }}
-                          title={`${booking.title} (${formatTime(booking.startTime)} - ${formatTime(displayEndTime)})\n${canInteract ? 'Drag to move.' : ''}`}
                         >
                           <div className="font-bold truncate text-sm pointer-events-none">{booking.title}</div>
                           <div className="opacity-90 flex items-center gap-1 truncate text-[10px] font-medium pointer-events-none">
@@ -293,15 +290,15 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
                               </div>
                           )}
                           {booking.type !== 'One-time' && (
-                              <div className="absolute top-1.5 right-1.5 opacity-60 pointer-events-none">
+                              <div className="absolute top-1.5 right-1.5 opacity-60 pointer-events-none print:hidden">
                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                               </div>
                           )}
 
-                          {/* Resize Handle */}
+                          {/* Resize Handle (Hidden on print) */}
                           {canInteract && (
                             <div 
-                                className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize flex justify-center items-end opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/5"
+                                className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize flex justify-center items-end opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/5 print:hidden"
                                 onMouseDown={(e) => handleResizeStart(e, booking)}
                                 onClick={(e) => e.stopPropagation()}
                             >
@@ -312,11 +309,6 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
                       )
                     })
                   }
-                  
-                  {/* Current Time Indicator (Red Line) */}
-                  {isToday(day) && (
-                    <CurrentTimeIndicator />
-                  )}
                 </div>
               );
             })}
@@ -328,6 +320,7 @@ export const WeekCalendar: React.FC<WeekCalendarProps> = ({
 };
 
 const CurrentTimeIndicator = () => {
+    // Hidden on print via CSS (no-print or print:hidden if added)
     const [top, setTop] = React.useState(0);
     const [visible, setVisible] = React.useState(true);
 
@@ -342,7 +335,6 @@ const CurrentTimeIndicator = () => {
             setVisible(true);
             const minutes = now.getMinutes();
             const totalMinutes = (hour - HOURS_OF_OPERATION.start) * 60 + minutes;
-            // Matches row height 80
             setTop((totalMinutes / 60) * 80); 
         };
         update();
@@ -354,7 +346,7 @@ const CurrentTimeIndicator = () => {
 
     return (
         <div 
-            className="absolute left-0 right-0 border-t-2 border-red-500 z-30 pointer-events-none flex items-center shadow-sm"
+            className="absolute left-0 right-0 border-t-2 border-red-500 z-30 pointer-events-none flex items-center shadow-sm print:hidden"
             style={{ top: `${top}px` }}
         >
             <div className="w-2.5 h-2.5 rounded-full bg-red-500 -ml-1.5 shadow-sm"></div>
