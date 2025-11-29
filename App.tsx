@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
   addWeeks, 
-  setHours, 
   format,
   differenceInMinutes,
   addMinutes
@@ -289,8 +288,8 @@ const App: React.FC = () => {
       return;
     }
     setEditingBooking(undefined);
-    const time = setHours(date, hour);
-    time.setMinutes(0);
+    const time = new Date(date);
+    time.setHours(hour, 0, 0, 0);
     setNewBookingParams({ date, time });
     setIsBookingModalOpen(true);
   };
