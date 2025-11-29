@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Booking, BookingType, HOURS_OF_OPERATION, UserProfile } from '../types';
-import { format, addMinutes, setHours, addMonths } from 'date-fns';
+import { format, addMinutes, addMonths } from 'date-fns';
 import { Trash2, AlertTriangle, Save, Calendar, Check, ChevronDown, Lock } from 'lucide-react';
 
 interface BookingFormProps {
@@ -47,8 +47,8 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   // Note: setHours returns a new Date (date-fns), so we can mutate it with setMinutes (native)
   const getDefaultStart = () => {
     if (initialStartTime) return initialStartTime;
-    const d = setHours(new Date(), 9);
-    d.setMinutes(0);
+    const d = new Date();
+    d.setHours(9, 0, 0, 0);
     return d;
   };
 
