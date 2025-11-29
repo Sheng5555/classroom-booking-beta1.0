@@ -4,7 +4,6 @@ import {
   format, 
   addWeeks, 
   isSameDay, 
-  setHours, 
   areIntervalsOverlapping,
   addMinutes,
   isBefore,
@@ -55,7 +54,9 @@ export const isOverlap = (
 export const generateTimeSlots = (startHour: number, endHour: number) => {
   const slots = [];
   for (let i = startHour; i < endHour; i++) {
-    slots.push({ hour: i, label: format(setHours(new Date(), i), 'h aa') });
+    const d = new Date();
+    d.setHours(i, 0, 0, 0);
+    slots.push({ hour: i, label: format(d, 'h aa') });
   }
   return slots;
 };
