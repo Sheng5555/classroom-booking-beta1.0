@@ -42,7 +42,7 @@
     <style>
       @media print {
         @page { 
-          size: A4 landscape; 
+          size: A4 portrait; 
           margin: 5mm; 
         }
         
@@ -60,9 +60,10 @@
           position: static !important;
         }
         
-        /* SCALING: Fit the tall calendar onto one A4 landscape page */
+        /* SCALING: Fit the tall calendar onto one A4 portrait page */
+        /* Zoom 70% fits ~1300px content height into ~1123px A4 height */
         .print-scale-down {
-          zoom: 65%; /* Scales content down to ~65% size */
+          zoom: 70%; 
           width: 100% !important;
         }
         
@@ -107,14 +108,14 @@
 <script type="importmap">
 {
   "imports": {
-    "date-fns": "https://aistudiocdn.com/date-fns@^4.1.0",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "date-fns": "https://aistudiocdn.com/date-fns@^4.1.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
     "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
     "vite": "https://aistudiocdn.com/vite@^7.2.4",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0"
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
   }
 }
 </script>
