@@ -77,7 +77,12 @@ const App: React.FC = () => {
 
   // Helper: Check Permissions
   const checkUserPermissions = (user: firebase.User | null): boolean => {
-    if (!user || !user.email) return false;
+    if (!user) return false;
+    
+    // Allow Guests (Anonymous users)
+    if (user.isAnonymous) return true;
+
+    if (!user.email) return false;
 
     const userEmail = user.email.toLowerCase();
     const isAdminUser = ADMIN_EMAILS.map(e => e.toLowerCase()).includes(userEmail);
@@ -104,38 +109,48 @@ const App: React.FC = () => {
         const isAllowed = checkUserPermissions(user);
 
         if (!isAllowed) {
+           // IMMEDIATE BOUNCE
+           await auth.signOut();
            setIsAccessDenied(true);
-           setCurrentUser({
-              uid: user.uid,
-              email: user.email,
-              displayName: user.displayName,
-              photoURL: user.photoURL
-           });
+           setCurrentUser(null);
            setIsAuthLoading(false);
+           alert("Access Denied: You must use a @" + ALLOWED_DOMAIN + " email.");
            return;
         }
 
         setIsAccessDenied(false);
-        setCurrentUser({
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          photoURL: user.photoURL
-        });
-        setIsGuest(false);
+        
+        if (user.isAnonymous) {
+          setIsGuest(true);
+          setCurrentUser({
+            uid: user.uid,
+            email: 'Guest',
+            displayName: 'Guest User',
+            photoURL: null
+          });
+        } else {
+          setIsGuest(false);
+          setCurrentUser({
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            photoURL: user.photoURL
+          });
+        }
+        
         loadData();
       } else {
-        if (!isGuest) {
-          setCurrentUser(null);
-          setIsAccessDenied(false);
-          setBookings([]);
-          setClassrooms([]);
-        }
+        // Logged out
+        setCurrentUser(null);
+        setIsGuest(false);
+        setIsAccessDenied(false);
+        setBookings([]);
+        setClassrooms([]);
       }
       setIsAuthLoading(false);
     });
     return () => unsubscribe();
-  }, [isGuest]);
+  }, []);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -158,8 +173,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLogin = async (e: React.SyntheticEvent) => {
-    e.preventDefault();
+  const handleLogin = async () => {
     try {
       if (window.location.protocol === 'file:') {
         alert("Authentication Error: You are running this file directly from your computer (file://).\n\nFirebase Auth requires a web server.");
@@ -169,47 +183,50 @@ const App: React.FC = () => {
       if (isLoginLoading) return;
       setIsLoginLoading(true);
       
+      // Force persistence to LOCAL before signing in
+      await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      
       const result = await auth.signInWithPopup(googleProvider);
       
-      // IMMEDIATE SECURITY CHECK
+      // IMMEDIATE SECURITY CHECK AFTER POPUP
       if (result.user) {
         const isAllowed = checkUserPermissions(result.user);
         if (!isAllowed) {
-          setIsAccessDenied(true);
-          // Don't alert here, let the UI handle it
+          await auth.signOut(); // Kick them out immediately
+          alert("Access Denied: You must use a @" + ALLOWED_DOMAIN + " email.");
+          return;
         }
       }
       
     } catch (error: any) {
       console.error("Login initiation failed", error);
-      alert(`Login failed: ${error.message}`);
+      if (error.code === 'auth/operation-not-supported-in-this-environment') {
+        alert("Login Error: Your browser environment (preview/file) does not support Google Sign-In.\n\nPlease deploy to Netlify or run 'npm run dev' locally.");
+      } else {
+        alert(`Login failed: ${error.message}`);
+      }
     } finally {
       setIsLoginLoading(false);
     }
   };
 
-  const handleGuestLogin = () => {
-    setIsGuest(true);
-    setIsAccessDenied(false);
-    setCurrentUser({
-      uid: 'guest-' + Math.random().toString(36).substr(2, 9),
-      email: 'guest@demo.com',
-      displayName: 'Guest User',
-      photoURL: null
-    });
-    loadData();
+  const handleGuestLogin = async () => {
+    if (isLoginLoading) return;
+    setIsLoginLoading(true);
+    try {
+      // Use REAL anonymous auth so Firestore rules work
+      await auth.signInAnonymously();
+    } catch (error: any) {
+      console.error("Guest login failed", error);
+      alert("Guest login failed. Please ensure 'Anonymous' is enabled in Firebase Console -> Authentication -> Sign-in method.");
+    } finally {
+      setIsLoginLoading(false);
+    }
   };
 
   const handleLogout = async () => {
-    if (isGuest) {
-      setIsGuest(false);
-      setCurrentUser(null);
-      setIsAccessDenied(false);
-    } else {
-      await auth.signOut();
-      setCurrentUser(null);
-      setIsAccessDenied(false);
-    }
+    await auth.signOut();
+    // State clearing is handled by onAuthStateChanged
   };
 
   // --- Handlers ---
@@ -268,7 +285,7 @@ const App: React.FC = () => {
   // --- Booking Interaction ---
   const handleSlotClick = (date: Date, hour: number) => {
     if (isGuest) {
-      alert("Guest accounts are Read-Only. Please Sign In to create bookings.");
+      alert("Guest accounts are Read-Only. Please Sign In with Google to create bookings.");
       return;
     }
     setEditingBooking(undefined);
@@ -427,28 +444,14 @@ const App: React.FC = () => {
     );
   }
 
-  // >>> ACCESS DENIED SCREEN <<<
+  // >>> ACCESS DENIED SCREEN (Fallback if redirect takes a moment) <<<
   if (isAccessDenied) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-neu-base p-6">
         <div className="bg-neu-base rounded-3xl shadow-neu-pressed p-8 max-w-md w-full text-center border-l-4 border-red-500 flex flex-col items-center">
-          <div className="p-4 bg-red-50 rounded-full mb-6 text-red-500 shadow-inner">
-             <ShieldAlert size={48} />
-          </div>
+          <ShieldAlert size={48} className="text-red-500 mb-4" />
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h1>
-          <p className="text-gray-500 mb-6">
-            You are logged in as <strong>{currentUser?.email}</strong>.
-          </p>
-          <p className="text-sm text-gray-400 mb-8 bg-gray-100 p-4 rounded-xl">
-            This system is restricted to users with <br/>
-            <strong className="text-gray-600">@{ALLOWED_DOMAIN}</strong> emails.
-          </p>
-          <button 
-            onClick={handleLogout}
-            className="px-6 py-3 bg-red-500 text-white font-bold rounded-xl shadow-lg hover:bg-red-600 transition-all w-full flex items-center justify-center gap-2"
-          >
-            <LogOut size={18} /> Sign Out
-          </button>
+          <p className="text-gray-500 mb-6">Redirecting to login...</p>
         </div>
       </div>
     );
