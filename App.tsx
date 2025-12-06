@@ -3,7 +3,9 @@ import {
   addWeeks, 
   format,
   differenceInMinutes,
-  addMinutes
+  addMinutes,
+  addDays,
+  isWeekend
 } from 'date-fns';
 import { 
   Calendar, 
@@ -407,27 +409,42 @@ const App: React.FC = () => {
     // RECURRENCE LOGIC
     if (data.type !== BookingType.ONE_TIME && recurrenceEnd) {
        
-       // TIME SHIFT LOGIC:
+       // TIME SHIFT / BACKTRACKING LOGIC:
        // If we are updating an existing series, we need to regenerate the series 
-       // starting from the FIRST instance's date, not the CLICKED instance's date.
-       // This prevents "chopping off" the past history of the series.
+       // starting from the FIRST instance's date.
+       // We sort the series and find the index of the clicked booking.
+       // Then we backtrack the new Date/Time by that many weeks/days.
        if (editingBooking && editingBooking.seriesId) {
           const seriesBookings = bookings.filter(b => b.seriesId === editingBooking.seriesId);
-          if (seriesBookings.length > 0) {
-             // Find the start of the original series
-             const originalStart = seriesBookings.reduce((min, b) => b.startTime < min ? b.startTime : min, seriesBookings[0].startTime);
+          // Sort by start time to find the order
+          seriesBookings.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+          
+          const index = seriesBookings.findIndex(b => b.id === editingBooking.id);
+          
+          if (index !== -1 && seriesBookings.length > 0) {
+             let newSeriesStart = new Date(baseBooking.startTime);
+             let newSeriesEnd = new Date(baseBooking.endTime);
+
+             if (data.type === BookingType.RECURRING_WEEKLY) {
+                 // Simple weekly backtrack
+                 newSeriesStart = addWeeks(newSeriesStart, -index);
+                 newSeriesEnd = addWeeks(newSeriesEnd, -index);
+             } else if (data.type === BookingType.RECURRING_WEEKDAY) {
+                 // Mon-Fri backtrack: We need to go back 'index' amount of valid slots
+                 let count = 0;
+                 while (count < index) {
+                     newSeriesStart = addDays(newSeriesStart, -1);
+                     newSeriesEnd = addDays(newSeriesEnd, -1);
+                     // If we moved back onto a weekend, we don't count it as a "slot"
+                     // but we keep the date move.
+                     if (!isWeekend(newSeriesStart)) {
+                         count++;
+                     }
+                 }
+             }
              
-             // Calculate how far into the series the clicked booking is (offset)
-             // Use getTime() for reliable math
-             const offset = editingBooking.startTime.getTime() - originalStart.getTime();
-             
-             // Shift the new start/end times backwards by this offset
-             // This effectively calculates what the "first" booking's new time should be
-             const shiftedStartTime = new Date(baseBooking.startTime.getTime() - offset);
-             const shiftedEndTime = new Date(baseBooking.endTime.getTime() - offset);
-             
-             baseBooking.startTime = shiftedStartTime;
-             baseBooking.endTime = shiftedEndTime;
+             baseBooking.startTime = newSeriesStart;
+             baseBooking.endTime = newSeriesEnd;
           }
        }
 
@@ -457,9 +474,13 @@ const App: React.FC = () => {
                 setBookings(prev => prev.filter(b => b.id !== editingBooking.id));
             }
           } else {
-            // Single Instance Update - Check if it WAS a series but is now single
-            // (Note: Currently UI doesn't allow converting series -> single easily via edit, 
-            // but if we did, we'd handle it here)
+            // Single Instance Update
+            // Check if it was part of a series (converted to single)
+            if (editingBooking.seriesId && data.type === BookingType.ONE_TIME) {
+               // The request is to change THIS instance to Single.
+               // We should probably remove it from the series ID? 
+               // For now, logic keeps simpler: Update logic handles direct ID updates.
+            }
           }
           
           if (isSeriesUpdate) {
