@@ -67,6 +67,7 @@ const App: React.FC = () => {
   // Booking Form State
   const [editingBooking, setEditingBooking] = useState<Booking | undefined>(undefined);
   const [newBookingParams, setNewBookingParams] = useState<{ date: Date, time: Date } | undefined>(undefined);
+  const [initialRecurrenceEndDate, setInitialRecurrenceEndDate] = useState<Date | undefined>(undefined);
   const [isOverlapWarning, setIsOverlapWarning] = useState(false);
 
   // Derived
@@ -292,6 +293,7 @@ const App: React.FC = () => {
       return;
     }
     setEditingBooking(undefined);
+    setInitialRecurrenceEndDate(undefined);
     const time = new Date(date);
     time.setHours(hour, 0, 0, 0);
     setNewBookingParams({ date, time });
@@ -301,6 +303,21 @@ const App: React.FC = () => {
   const handleBookingClick = (booking: Booking) => {
     setEditingBooking(booking);
     setNewBookingParams(undefined);
+    
+    // Calculate the end date of the series to pre-fill the form
+    if (booking.seriesId) {
+       const seriesBookings = bookings.filter(b => b.seriesId === booking.seriesId);
+       if (seriesBookings.length > 0) {
+          // Find the max end time
+          const maxEnd = seriesBookings.reduce((max, b) => b.endTime > max ? b.endTime : max, seriesBookings[0].endTime);
+          setInitialRecurrenceEndDate(maxEnd);
+       } else {
+          setInitialRecurrenceEndDate(undefined);
+       }
+    } else {
+       setInitialRecurrenceEndDate(undefined);
+    }
+    
     setIsBookingModalOpen(true);
   };
 
@@ -371,7 +388,7 @@ const App: React.FC = () => {
   const handleSaveBooking = async (data: Partial<Booking>, recurrenceEnd?: Date) => {
     if (!currentUser) return;
 
-    const baseBooking: Omit<Booking, 'id'> = {
+    let baseBooking: Omit<Booking, 'id'> = {
       title: data.title!,
       description: data.description,
       organizer: data.organizer!,
@@ -387,7 +404,33 @@ const App: React.FC = () => {
 
     let newBookingsToAdd: Booking[] = [];
 
+    // RECURRENCE LOGIC
     if (data.type !== BookingType.ONE_TIME && recurrenceEnd) {
+       
+       // TIME SHIFT LOGIC:
+       // If we are updating an existing series, we need to regenerate the series 
+       // starting from the FIRST instance's date, not the CLICKED instance's date.
+       // This prevents "chopping off" the past history of the series.
+       if (editingBooking && editingBooking.seriesId) {
+          const seriesBookings = bookings.filter(b => b.seriesId === editingBooking.seriesId);
+          if (seriesBookings.length > 0) {
+             // Find the start of the original series
+             const originalStart = seriesBookings.reduce((min, b) => b.startTime < min ? b.startTime : min, seriesBookings[0].startTime);
+             
+             // Calculate how far into the series the clicked booking is (offset)
+             // Use getTime() for reliable math
+             const offset = editingBooking.startTime.getTime() - originalStart.getTime();
+             
+             // Shift the new start/end times backwards by this offset
+             // This effectively calculates what the "first" booking's new time should be
+             const shiftedStartTime = new Date(baseBooking.startTime.getTime() - offset);
+             const shiftedEndTime = new Date(baseBooking.endTime.getTime() - offset);
+             
+             baseBooking.startTime = shiftedStartTime;
+             baseBooking.endTime = shiftedEndTime;
+          }
+       }
+
        newBookingsToAdd = generateRecurringBookings(baseBooking, recurrenceEnd, data.type!);
     } else {
        newBookingsToAdd = [{
@@ -399,30 +442,35 @@ const App: React.FC = () => {
 
     try {
       if (editingBooking) {
-          if (newBookingsToAdd.length > 1) {
-            // UPDATING A SERIES (OR CONVERTING TO ONE)
-            // 1. Delete the old series/booking first to avoid overlap
+          // If we are updating to a Series (or updating an existing Series), delete the old stuff first
+          const isSeriesUpdate = newBookingsToAdd.length > 1;
+          
+          if (isSeriesUpdate) {
             if (editingBooking.seriesId) {
                 // DELETE OLD SERIES
                 await api.deleteBookingSeries(editingBooking.seriesId);
                 // Update Local State: Remove old series
                 setBookings(prev => prev.filter(b => b.seriesId !== editingBooking.seriesId));
             } else {
-                // DELETE SINGLE BOOKING
+                // DELETE SINGLE BOOKING (Converted to series)
                 await api.deleteBooking(editingBooking.id);
-                // Update Local State: Remove old single booking
                 setBookings(prev => prev.filter(b => b.id !== editingBooking.id));
             }
-
-            // 2. Create the new series
-            await api.createBookings(newBookingsToAdd);
-            setBookings(prev => [...prev, ...newBookingsToAdd]);
-
           } else {
-             // Single instance update
+            // Single Instance Update - Check if it WAS a series but is now single
+            // (Note: Currently UI doesn't allow converting series -> single easily via edit, 
+            // but if we did, we'd handle it here)
+          }
+          
+          if (isSeriesUpdate) {
+             await api.createBookings(newBookingsToAdd);
+             setBookings(prev => [...prev, ...newBookingsToAdd]);
+          } else {
+             // Just updating a single booking without changing structure
              await api.updateBooking(newBookingsToAdd[0]);
              setBookings(prev => prev.map(b => b.id === editingBooking.id ? newBookingsToAdd[0] : b));
           }
+
       } else {
           // Creating New
           await api.createBookings(newBookingsToAdd);
@@ -590,6 +638,7 @@ const App: React.FC = () => {
           currentUser={currentUser}
           isAdmin={isAdmin}
           isGuest={isGuest}
+          initialRecurrenceEndDate={initialRecurrenceEndDate}
         />
       </Modal>
 
