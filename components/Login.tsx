@@ -2,7 +2,7 @@ import React from 'react';
 import { BookOpen, User } from 'lucide-react';
 
 interface LoginProps {
-  onLogin: () => void;
+  onLogin: (e: React.FormEvent) => void;
   onGuestLogin: () => void;
   isLoading: boolean;
 }
@@ -21,6 +21,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onGuestLogin, isLoading }
 
         <div className="w-full space-y-4">
           <button
+            type="button"
             onClick={onLogin}
             disabled={isLoading}
             className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-neu-base text-gray-700 font-bold rounded-xl shadow-neu hover:text-primary-600 hover:shadow-neu-pressed active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
@@ -42,6 +43,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, onGuestLogin, isLoading }
           </div>
 
           <button
+            type="button"
             onClick={onGuestLogin}
             disabled={isLoading}
             className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-neu-base text-gray-600 font-bold text-sm rounded-xl shadow-neu hover:text-gray-800 hover:shadow-neu-pressed active:scale-95 transition-all"
