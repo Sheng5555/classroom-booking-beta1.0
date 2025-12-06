@@ -12,7 +12,7 @@ interface BookingFormProps {
   onDelete: (id: string, deleteSeries: boolean) => void;
   isOverlapWarning: boolean;
   setIsOverlapWarning: (val: boolean) => void;
-  checkConflict: (start: Date, end: Date, excludeId?: string) => boolean;
+  checkConflict: (start: Date, end: Date, excludeId?: string, excludeSeriesId?: string) => boolean;
   
   // Auth Props
   currentUser: UserProfile;
@@ -44,7 +44,6 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   const [date, setDate] = useState(format(existingBooking?.startTime || initialDate || new Date(), 'yyyy-MM-dd'));
   
   // Time state handling
-  // Note: setHours returns a new Date (date-fns), so we can mutate it with setMinutes (native)
   const getDefaultStart = () => {
     if (initialStartTime) return initialStartTime;
     const d = new Date();
@@ -107,8 +106,15 @@ export const BookingForm: React.FC<BookingFormProps> = ({
       return;
     }
 
-    // Basic conflict check for initial instance
-    const hasConflict = checkConflict(s, e, existingBooking?.id);
+    // Basic conflict check
+    // If updating a series, we exclude the entire series from conflict checking
+    // If updating a single event, we exclude just that ID
+    const hasConflict = checkConflict(
+      s, 
+      e, 
+      existingBooking?.id, 
+      existingBooking?.seriesId
+    );
 
     if (hasConflict) {
       setError("Warning: This time slot overlaps with an existing booking.");
@@ -153,7 +159,13 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   useEffect(() => {
     const { s, e } = getStartEndDateObjects();
     if (s < e) {
-       const conflict = checkConflict(s, e, existingBooking?.id);
+       // Pass seriesId to exclude conflicts with itself/series
+       const conflict = checkConflict(
+         s, 
+         e, 
+         existingBooking?.id, 
+         existingBooking?.seriesId
+       );
        if (conflict) setError("This slot is already booked!");
        else setError(null);
     }
