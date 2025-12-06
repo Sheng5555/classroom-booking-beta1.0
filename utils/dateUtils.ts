@@ -4,7 +4,6 @@ import {
   format, 
   addWeeks, 
   isSameDay, 
-  areIntervalsOverlapping,
   addMinutes,
   isBefore,
   addDays,
@@ -51,10 +50,9 @@ export const isOverlap = (
     // If excluding a whole series (update series)
     if (excludeSeriesId && b.seriesId === excludeSeriesId) return false;
     
-    return areIntervalsOverlapping(
-      { start: newStart, end: newEnd },
-      { start: b.startTime, end: b.endTime }
-    );
+    // Custom overlap check to ensure exclusive boundaries (e.g. 10:00-11:00 and 11:00-12:00 do NOT overlap)
+    // Overlap exists if (StartA < EndB) and (EndA > StartB)
+    return newStart < b.endTime && newEnd > b.startTime;
   });
 };
 
