@@ -18,6 +18,9 @@ interface BookingFormProps {
   currentUser: UserProfile;
   isAdmin: boolean;
   isGuest?: boolean;
+  
+  // Recurrence Fix
+  initialRecurrenceEndDate?: Date;
 }
 
 export const BookingForm: React.FC<BookingFormProps> = ({
@@ -30,7 +33,8 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   checkConflict,
   currentUser,
   isAdmin,
-  isGuest = false
+  isGuest = false,
+  initialRecurrenceEndDate
 }) => {
   // --- PERMISSION LOGIC ---
   const isOwner = existingBooking ? existingBooking.userId === currentUser.uid : true;
@@ -55,9 +59,20 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   const [startTime, setStartTime] = useState(format(defaultStart, 'HH:mm'));
   const [endTime, setEndTime] = useState(format(existingBooking?.endTime || addMinutes(defaultStart, 60), 'HH:mm'));
   
-  const [recurrenceEnd, setRecurrenceEnd] = useState(
-    format(addMonths(new Date(date), 1), 'yyyy-MM-dd')
-  );
+  // Initialize recurrence end date: prefer passed initial value, otherwise default to 1 month ahead
+  const [recurrenceEnd, setRecurrenceEnd] = useState(() => {
+    if (initialRecurrenceEndDate) {
+      return format(initialRecurrenceEndDate, 'yyyy-MM-dd');
+    }
+    return format(addMonths(new Date(date), 1), 'yyyy-MM-dd');
+  });
+
+  // Update recurrence end if date changes and it wasn't pre-filled by an existing series
+  useEffect(() => {
+    if (!existingBooking && !initialRecurrenceEndDate) {
+       setRecurrenceEnd(format(addMonths(new Date(date), 1), 'yyyy-MM-dd'));
+    }
+  }, [date, existingBooking, initialRecurrenceEndDate]);
 
   const [error, setError] = useState<string | null>(null);
 
