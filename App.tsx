@@ -28,6 +28,7 @@ import { generateRecurringBookings, isOverlap, formatMonthYear } from './utils/d
 import { api } from './services/api';
 import { auth, googleProvider } from './services/firebase';
 import firebase from 'firebase/compat/app';
+import 'firebase/compat/auth';
 
 // --- CONFIGURATION ---
 
@@ -172,8 +173,8 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     try {
       if (window.location.protocol === 'file:') {
         alert("Authentication Error: You are running this file directly from your computer (file://).\n\nFirebase Auth requires a web server.");
