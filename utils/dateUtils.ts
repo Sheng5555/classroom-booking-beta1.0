@@ -39,11 +39,18 @@ export const isOverlap = (
   newEnd: Date, 
   classroomId: string, 
   existingBookings: Booking[],
-  excludeBookingId?: string
+  excludeBookingId?: string,
+  excludeSeriesId?: string
 ): boolean => {
   return existingBookings.some(b => {
     if (b.classroomId !== classroomId) return false;
+    
+    // If excluding a specific ID (update single)
     if (excludeBookingId && b.id === excludeBookingId) return false;
+    
+    // If excluding a whole series (update series)
+    if (excludeSeriesId && b.seriesId === excludeSeriesId) return false;
+    
     return areIntervalsOverlapping(
       { start: newStart, end: newEnd },
       { start: b.startTime, end: b.endTime }
