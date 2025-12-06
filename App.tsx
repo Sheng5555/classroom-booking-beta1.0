@@ -402,23 +402,20 @@ const App: React.FC = () => {
             // UPDATING A SERIES (OR CONVERTING TO ONE)
             // 1. Delete the old series/booking first to avoid overlap
             if (editingBooking.seriesId) {
+                // DELETE OLD SERIES
                 await api.deleteBookingSeries(editingBooking.seriesId);
+                // Update Local State: Remove old series
+                setBookings(prev => prev.filter(b => b.seriesId !== editingBooking.seriesId));
             } else {
+                // DELETE SINGLE BOOKING
                 await api.deleteBooking(editingBooking.id);
+                // Update Local State: Remove old single booking
+                setBookings(prev => prev.filter(b => b.id !== editingBooking.id));
             }
 
             // 2. Create the new series
             await api.createBookings(newBookingsToAdd);
-            
-            // 3. Update local state
-            setBookings(prev => {
-               // Filter out old
-               const withoutOld = editingBooking.seriesId 
-                   ? prev.filter(b => b.seriesId !== editingBooking.seriesId)
-                   : prev.filter(b => b.id !== editingBooking.id);
-               // Add new
-               return [...withoutOld, ...newBookingsToAdd];
-            });
+            setBookings(prev => [...prev, ...newBookingsToAdd]);
 
           } else {
              // Single instance update
