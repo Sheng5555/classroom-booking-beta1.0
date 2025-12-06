@@ -172,7 +172,8 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLogin = async () => {
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
       if (window.location.protocol === 'file:') {
         alert("Authentication Error: You are running this file directly from your computer (file://).\n\nFirebase Auth requires a web server.");
@@ -201,6 +202,8 @@ const App: React.FC = () => {
       console.error("Login initiation failed", error);
       if (error.code === 'auth/operation-not-supported-in-this-environment') {
         alert("Login Error: Your browser environment (preview/file) does not support Google Sign-In.\n\nPlease deploy to Netlify or run 'npm run dev' locally.");
+      } else if (error.code === 'auth/unauthorized-domain') {
+        alert(`Configuration Error: The domain "${window.location.hostname}" is not authorized.\n\nGo to Firebase Console -> Authentication -> Settings -> Authorized Domains and add: ${window.location.hostname}`);
       } else {
         alert(`Login failed: ${error.message}`);
       }
@@ -359,9 +362,9 @@ const App: React.FC = () => {
     }
   };
 
-  const checkConflictInApp = (start: Date, end: Date, excludeId?: string) => {
+  const checkConflictInApp = (start: Date, end: Date, excludeId?: string, excludeSeriesId?: string) => {
     if (!selectedClassroom) return false;
-    return isOverlap(start, end, selectedClassroomId, bookings, excludeId);
+    return isOverlap(start, end, selectedClassroomId, bookings, excludeId, excludeSeriesId);
   };
 
   const handleSaveBooking = async (data: Partial<Booking>, recurrenceEnd?: Date) => {
