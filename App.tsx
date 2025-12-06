@@ -396,22 +396,41 @@ const App: React.FC = () => {
     try {
       if (editingBooking) {
           if (newBookingsToAdd.length > 1) {
+            // UPDATING A SERIES (OR CONVERTING TO ONE)
+            // 1. Delete the old series/booking first to avoid overlap
+            if (editingBooking.seriesId) {
+                await api.deleteBookingSeries(editingBooking.seriesId);
+            } else {
+                await api.deleteBooking(editingBooking.id);
+            }
+
+            // 2. Create the new series
             await api.createBookings(newBookingsToAdd);
+            
+            // 3. Update local state
             setBookings(prev => {
-               const others = prev.filter(b => b.id !== editingBooking.id);
-               return [...others, ...newBookingsToAdd];
+               // Filter out old
+               const withoutOld = editingBooking.seriesId 
+                   ? prev.filter(b => b.seriesId !== editingBooking.seriesId)
+                   : prev.filter(b => b.id !== editingBooking.id);
+               // Add new
+               return [...withoutOld, ...newBookingsToAdd];
             });
+
           } else {
+             // Single instance update
              await api.updateBooking(newBookingsToAdd[0]);
              setBookings(prev => prev.map(b => b.id === editingBooking.id ? newBookingsToAdd[0] : b));
           }
       } else {
+          // Creating New
           await api.createBookings(newBookingsToAdd);
           setBookings(prev => [...prev, ...newBookingsToAdd]);
       }
       setIsBookingModalOpen(false);
     } catch (e) {
       alert("Failed to save booking.");
+      console.error(e);
     }
   };
 
