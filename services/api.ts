@@ -1,6 +1,7 @@
 import { Booking, Classroom } from '../types';
 import { db } from './firebase';
 import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
 
 // Collection References
 const COLLECTIONS = {
