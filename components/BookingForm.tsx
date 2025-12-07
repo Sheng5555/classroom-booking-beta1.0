@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Booking, BookingType, HOURS_OF_OPERATION, UserProfile } from '../types';
 import { format, addMinutes, addMonths } from 'date-fns';
-import { Trash2, AlertTriangle, Save, Calendar, Check, ChevronDown, Lock, Layers, Copy } from 'lucide-react';
+import { Trash2, AlertTriangle, Save, Calendar, Check, ChevronDown, Lock, Layers, Copy, Info } from 'lucide-react';
 
 interface BookingFormProps {
   initialDate?: Date;
@@ -12,7 +12,8 @@ interface BookingFormProps {
   onDelete: (id: string, deleteSeries: boolean) => void;
   isOverlapWarning: boolean;
   setIsOverlapWarning: (val: boolean) => void;
-  checkConflict: (start: Date, end: Date, excludeId?: string, excludeSeriesId?: string) => boolean;
+  // Updated to return Booking | null instead of boolean
+  checkConflict: (start: Date, end: Date, excludeId?: string, excludeSeriesId?: string) => Booking | null;
   
   // Auth Props
   currentUser: UserProfile;
@@ -79,6 +80,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   }, [date, existingBooking, initialRecurrenceEndDate]);
 
   const [error, setError] = useState<string | null>(null);
+  const [conflictBooking, setConflictBooking] = useState<Booking | null>(null);
 
   // Delete Confirmation State
   const [deleteConfirmType, setDeleteConfirmType] = useState<'single' | 'series' | null>(null);
@@ -117,6 +119,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
     if (isReadOnly) return;
     
     setError(null);
+    setConflictBooking(null);
 
     const { s, e } = getStartEndDateObjects();
 
@@ -126,19 +129,18 @@ export const BookingForm: React.FC<BookingFormProps> = ({
     }
 
     // SCOPED CONFLICT CHECK
-    // If scope is 'single', we only exclude this specific ID.
-    // If scope is 'series', we exclude the entire series ID.
     const excludeId = updateScope === 'single' ? existingBooking?.id : undefined;
     const excludeSeriesId = updateScope === 'series' ? existingBooking?.seriesId : undefined;
 
-    const hasConflict = checkConflict(
+    const conflict = checkConflict(
       s, 
       e, 
       excludeId, 
       excludeSeriesId
     );
 
-    if (hasConflict) {
+    if (conflict) {
+      setConflictBooking(conflict);
       setError("Warning: This time slot overlaps with an existing booking.");
       return; 
     }
@@ -181,7 +183,6 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   useEffect(() => {
     const { s, e } = getStartEndDateObjects();
     if (s < e) {
-       // Scope logic for real-time check too
        const excludeId = updateScope === 'single' ? existingBooking?.id : undefined;
        const excludeSeriesId = updateScope === 'series' ? existingBooking?.seriesId : undefined;
        
@@ -191,8 +192,14 @@ export const BookingForm: React.FC<BookingFormProps> = ({
          excludeId, 
          excludeSeriesId
        );
-       if (conflict) setError("This slot is already booked!");
-       else setError(null);
+       
+       if (conflict) {
+         setConflictBooking(conflict);
+         setError("This slot is already booked!");
+       } else {
+         setConflictBooking(null);
+         setError(null);
+       }
     }
   }, [date, startTime, endTime, checkConflict, existingBooking, updateScope]);
 
@@ -216,9 +223,23 @@ export const BookingForm: React.FC<BookingFormProps> = ({
       )}
 
       {error && (
-        <div className="bg-red-50 text-red-700 px-4 py-3 rounded-xl shadow-neu-pressed flex items-start gap-2 text-sm border-l-4 border-red-500">
-          <AlertTriangle size={18} className="shrink-0 mt-0.5" />
-          <span>{error}</span>
+        <div className="bg-red-50 text-red-700 px-4 py-3 rounded-xl shadow-neu-pressed flex flex-col gap-2 text-sm border-l-4 border-red-500 animate-in fade-in slide-in-from-top-1">
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+            <span className="font-bold">{error}</span>
+          </div>
+          {conflictBooking && (
+            <div className="ml-6 text-xs bg-white/50 p-2 rounded-lg">
+               <span className="font-bold block text-red-800">Overlap detected with:</span>
+               <div className="flex items-center gap-1 mt-1">
+                 <span className="font-semibold">{conflictBooking.title}</span>
+                 <span className="opacity-75">({conflictBooking.organizer})</span>
+               </div>
+               <div className="opacity-75 mt-0.5">
+                 {format(conflictBooking.startTime, 'h:mm a')} - {format(conflictBooking.endTime, 'h:mm a')}
+               </div>
+            </div>
+          )}
         </div>
       )}
 
