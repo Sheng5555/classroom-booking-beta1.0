@@ -47,7 +47,11 @@ const ADMIN_EMAILS = [
 ];
 
 // 2. DOMAIN RESTRICTION:
-const ALLOWED_DOMAIN = 'wagor.tc.edu.tw'; 
+// Add domains to this array. Users must match one of these domains (unless they are admin).
+const ALLOWED_DOMAINS = [
+  'wagor.tc.edu.tw',
+  // 'gmail.com', // Example: Add more domains here
+]; 
 
 const App: React.FC = () => {
   // --- Auth State ---
@@ -117,9 +121,13 @@ const App: React.FC = () => {
     if (isAdminUser) return true;
 
     // If Domain Restriction is active
-    if (ALLOWED_DOMAIN) {
-      const requiredDomain = '@' + ALLOWED_DOMAIN.toLowerCase();
-      if (!userEmail.endsWith(requiredDomain)) {
+    if (ALLOWED_DOMAINS.length > 0) {
+      // Check if email ends with any of the allowed domains
+      const hasValidDomain = ALLOWED_DOMAINS.some(domain => 
+        userEmail.endsWith('@' + domain.toLowerCase())
+      );
+      
+      if (!hasValidDomain) {
         return false;
       }
     }
@@ -140,7 +148,7 @@ const App: React.FC = () => {
            setIsAccessDenied(true);
            setCurrentUser(null);
            setIsAuthLoading(false);
-           alert("Access Denied: You must use a @" + ALLOWED_DOMAIN + " email.");
+           alert(`Access Denied: You must use an email from one of the following domains: ${ALLOWED_DOMAINS.map(d => '@' + d).join(', ')}`);
            return;
         }
 
@@ -232,7 +240,7 @@ const App: React.FC = () => {
         const isAllowed = checkUserPermissions(result.user);
         if (!isAllowed) {
           await auth.signOut(); // Kick them out immediately
-          alert("Access Denied: You must use a @" + ALLOWED_DOMAIN + " email.");
+          alert(`Access Denied: You must use an email from one of the following domains: ${ALLOWED_DOMAINS.map(d => '@' + d).join(', ')}`);
           return;
         }
       }
