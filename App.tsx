@@ -387,7 +387,7 @@ const App: React.FC = () => {
     return isOverlap(start, end, selectedClassroomId, bookings, excludeId, excludeSeriesId);
   };
 
-  const handleSaveBooking = async (data: Partial<Booking>, recurrenceEnd?: Date) => {
+  const handleSaveBooking = async (data: Partial<Booking>, recurrenceEnd?: Date, updateScope: 'single' | 'series' = 'series') => {
     if (!currentUser) return;
 
     let baseBooking: Omit<Booking, 'id'> = {
@@ -410,11 +410,9 @@ const App: React.FC = () => {
     if (data.type !== BookingType.ONE_TIME && recurrenceEnd) {
        
        // TIME SHIFT / BACKTRACKING LOGIC:
-       // If we are updating an existing series, we need to regenerate the series 
-       // starting from the FIRST instance's date.
-       // We sort the series and find the index of the clicked booking.
-       // Then we backtrack the new Date/Time by that many weeks/days.
-       if (editingBooking && editingBooking.seriesId) {
+       // If we are updating an existing series AND the user chose "Entire Series",
+       // we regenerate the series starting from the FIRST instance's date.
+       if (editingBooking && editingBooking.seriesId && updateScope === 'series') {
           const seriesBookings = bookings.filter(b => b.seriesId === editingBooking.seriesId);
           // Sort by start time to find the order
           seriesBookings.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
@@ -447,9 +445,17 @@ const App: React.FC = () => {
              baseBooking.endTime = newSeriesEnd;
           }
        }
-
-       newBookingsToAdd = generateRecurringBookings(baseBooking, recurrenceEnd, data.type!);
+       
+       // Only regenerate if scope is series or if it's a new booking
+       if (updateScope === 'series' || !editingBooking) {
+           newBookingsToAdd = generateRecurringBookings(baseBooking, recurrenceEnd, data.type!);
+       } else {
+           // Scope is single, but it's part of a series (technically). 
+           // In "Single" mode for a recurring item, we treat it like a single item update below.
+           newBookingsToAdd = []; 
+       }
     } else {
+       // One-time or Single instance handling
        newBookingsToAdd = [{
          ...baseBooking,
          id: editingBooking?.id || crypto.randomUUID(),
@@ -459,8 +465,10 @@ const App: React.FC = () => {
 
     try {
       if (editingBooking) {
-          // If we are updating to a Series (or updating an existing Series), delete the old stuff first
-          const isSeriesUpdate = newBookingsToAdd.length > 1;
+          // UPDATE EXISTING
+          
+          // Check if we are updating a series
+          const isSeriesUpdate = (newBookingsToAdd.length > 1) && (updateScope === 'series');
           
           if (isSeriesUpdate) {
             if (editingBooking.seriesId) {
@@ -473,23 +481,25 @@ const App: React.FC = () => {
                 await api.deleteBooking(editingBooking.id);
                 setBookings(prev => prev.filter(b => b.id !== editingBooking.id));
             }
+            
+            // Add new series
+            await api.createBookings(newBookingsToAdd);
+            setBookings(prev => [...prev, ...newBookingsToAdd]);
+
           } else {
-            // Single Instance Update
-            // Check if it was part of a series (converted to single)
-            if (editingBooking.seriesId && data.type === BookingType.ONE_TIME) {
-               // The request is to change THIS instance to Single.
-               // We should probably remove it from the series ID? 
-               // For now, logic keeps simpler: Update logic handles direct ID updates.
-            }
-          }
-          
-          if (isSeriesUpdate) {
-             await api.createBookings(newBookingsToAdd);
-             setBookings(prev => [...prev, ...newBookingsToAdd]);
-          } else {
-             // Just updating a single booking without changing structure
-             await api.updateBooking(newBookingsToAdd[0]);
-             setBookings(prev => prev.map(b => b.id === editingBooking.id ? newBookingsToAdd[0] : b));
+             // SINGLE INSTANCE UPDATE
+             // This runs if:
+             // 1. It's a simple One-Time booking update.
+             // 2. It's a Recurring booking, but user selected "This Event Only".
+             
+             const updatedInstance = {
+                 ...baseBooking,
+                 id: editingBooking.id,
+                 seriesId: editingBooking.seriesId // Keep linkage
+             };
+             
+             await api.updateBooking(updatedInstance);
+             setBookings(prev => prev.map(b => b.id === editingBooking.id ? updatedInstance : b));
           }
 
       } else {
