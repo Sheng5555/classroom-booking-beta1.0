@@ -19,7 +19,9 @@ import {
   User as UserIcon,
   ShieldAlert,
   Filter,
-  RefreshCw
+  RefreshCw,
+  CalendarRange,
+  FileText
 } from 'lucide-react';
 
 import { WeekCalendar } from './components/WeekCalendar';
@@ -82,6 +84,7 @@ const App: React.FC = () => {
   
   // PRINT MODAL STATE
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [showPrintRange, setShowPrintRange] = useState(false);
   const [printStartDate, setPrintStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [printEndDate, setPrintEndDate] = useState(format(addWeeks(new Date(), 4), 'yyyy-MM-dd'));
   const [weeksToPrint, setWeeksToPrint] = useState<Date[]>([]);
@@ -279,14 +282,18 @@ const App: React.FC = () => {
   };
 
   const handlePrint = () => {
+    setShowPrintRange(false); // Reset UI
     setIsPrintModalOpen(true);
   };
 
   const handleConfirmPrint = (mode: 'current' | 'range') => {
-    setIsPrintModalOpen(false);
+    setIsPrintModalOpen(false); // Close modal FIRST to prevent blocking
     
     if (mode === 'current') {
-      window.print();
+      // Wait for modal exit animation/unmount before printing
+      setTimeout(() => {
+         window.print();
+      }, 500);
     } else {
       // Range Mode
       const start = new Date(printStartDate);
@@ -294,7 +301,7 @@ const App: React.FC = () => {
       const weeks = getWeeksInRange(start, end);
       setWeeksToPrint(weeks);
       
-      // Allow render to update then print
+      // Allow render to update -> Toggle CSS -> Print -> Cleanup
       setTimeout(() => {
          document.body.classList.add('print-mode-range');
          window.print();
@@ -789,56 +796,67 @@ const App: React.FC = () => {
       </Modal>
 
       {/* PRINT OPTIONS MODAL */}
-      <Modal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} title="Print Options">
+      <Modal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} title="Print Schedule">
          <div className="space-y-6">
             <div className="p-4 bg-neu-base rounded-xl shadow-neu-pressed">
-               <h4 className="font-bold text-gray-600 mb-4 uppercase text-xs tracking-wide">Select Print Mode</h4>
-               <div className="flex gap-4">
-                  <button 
-                     onClick={() => handleConfirmPrint('current')}
-                     className="flex-1 py-3 px-4 bg-neu-base shadow-neu rounded-xl text-primary-600 font-bold hover:text-primary-700 active:shadow-neu-pressed transition-all"
-                  >
-                     Current Week
-                  </button>
-                  <button 
-                     onClick={() => {
-                        // Just toggle internal state to show range inputs, handled below
-                     }}
-                     className="flex-1 py-3 px-4 bg-neu-base shadow-neu rounded-xl text-gray-600 font-bold hover:text-gray-800 active:shadow-neu-pressed transition-all pointer-events-none opacity-50"
-                  >
-                     OR
-                  </button>
-               </div>
+               <h4 className="font-bold text-gray-600 mb-4 uppercase text-xs tracking-wide">Quick Print</h4>
+               <button 
+                   onClick={() => handleConfirmPrint('current')}
+                   className="w-full py-4 bg-primary-600 text-white font-bold rounded-xl shadow-md hover:bg-primary-700 active:scale-95 transition-all flex items-center justify-center gap-3"
+                >
+                   <FileText size={20} /> Print Current Week
+                </button>
             </div>
 
-            <div className="p-4 bg-neu-base rounded-xl shadow-neu-pressed border-t-2 border-primary-500">
-               <h4 className="font-bold text-gray-600 mb-4 uppercase text-xs tracking-wide">Print Date Range</h4>
-               <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                     <label className="text-xs text-gray-400 font-bold block mb-1">Start Date</label>
-                     <input 
-                        type="date" 
-                        value={printStartDate} 
-                        onChange={(e) => setPrintStartDate(e.target.value)}
-                        className="w-full px-3 py-2 bg-neu-base rounded-lg shadow-neu-pressed text-sm outline-none focus:ring-1 focus:ring-primary-400"
-                     />
-                  </div>
-                  <div>
-                     <label className="text-xs text-gray-400 font-bold block mb-1">End Date</label>
-                     <input 
-                        type="date" 
-                        value={printEndDate} 
-                        onChange={(e) => setPrintEndDate(e.target.value)}
-                        className="w-full px-3 py-2 bg-neu-base rounded-lg shadow-neu-pressed text-sm outline-none focus:ring-1 focus:ring-primary-400"
-                     />
-                  </div>
+            <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-gray-300"></div>
+                <span className="flex-shrink mx-4 text-gray-400 text-xs uppercase font-bold">Advanced Options</span>
+                <div className="flex-grow border-t border-gray-300"></div>
+            </div>
+
+            <div className="p-4 bg-neu-base rounded-xl shadow-neu-pressed">
+               <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-bold text-gray-600 uppercase text-xs tracking-wide">Print Date Range</h4>
+                  {!showPrintRange && (
+                     <button 
+                        onClick={() => setShowPrintRange(true)}
+                        className="text-primary-600 text-xs font-bold hover:underline"
+                     >
+                        Configure...
+                     </button>
+                  )}
                </div>
-               <button 
-                  onClick={() => handleConfirmPrint('range')}
-                  className="w-full py-3 bg-primary-600 text-white font-bold rounded-xl shadow-md hover:bg-primary-700 transition-all flex items-center justify-center gap-2"
-               >
-                  <Printer size={18} /> Print Range
-               </button>
+
+               {showPrintRange && (
+                  <div className="animate-in fade-in slide-in-from-top-2">
+                     <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                           <label className="text-xs text-gray-400 font-bold block mb-1">Start Date</label>
+                           <input 
+                              type="date" 
+                              value={printStartDate} 
+                              onChange={(e) => setPrintStartDate(e.target.value)}
+                              className="w-full px-3 py-2 bg-neu-base rounded-lg shadow-neu-pressed text-sm outline-none focus:ring-1 focus:ring-primary-400"
+                           />
+                        </div>
+                        <div>
+                           <label className="text-xs text-gray-400 font-bold block mb-1">End Date</label>
+                           <input 
+                              type="date" 
+                              value={printEndDate} 
+                              onChange={(e) => setPrintEndDate(e.target.value)}
+                              className="w-full px-3 py-2 bg-neu-base rounded-lg shadow-neu-pressed text-sm outline-none focus:ring-1 focus:ring-primary-400"
+                           />
+                        </div>
+                     </div>
+                     <button 
+                        onClick={() => handleConfirmPrint('range')}
+                        className="w-full py-3 bg-neu-base text-gray-700 border border-gray-300 font-bold rounded-xl shadow-sm hover:text-primary-600 hover:border-primary-400 transition-all flex items-center justify-center gap-2"
+                     >
+                        <CalendarRange size={18} /> Print Range
+                     </button>
+                  </div>
+               )}
             </div>
          </div>
       </Modal>
