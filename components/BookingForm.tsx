@@ -50,7 +50,9 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   const [date, setDate] = useState(format(existingBooking?.startTime || initialDate || new Date(), 'yyyy-MM-dd'));
   
   // Update Scope State (Default to series if recurring, otherwise single)
-  const [updateScope, setUpdateScope] = useState<'single' | 'series'>('series');
+  const [updateScope, setUpdateScope] = useState<'single' | 'series'>(
+    isRecurringInstance ? 'series' : 'single'
+  );
   
   // Time state handling
   const getDefaultStart = () => {
