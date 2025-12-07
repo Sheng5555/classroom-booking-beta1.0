@@ -28,7 +28,7 @@ import { BookingForm } from './components/BookingForm';
 import { ClassroomManager } from './components/ClassroomManager';
 import { Login } from './components/Login';
 import { Booking, Classroom, BookingType, UserProfile } from './types';
-import { generateRecurringBookings, isOverlap, findOverlappingBooking, formatMonthYear } from './utils/dateUtils';
+import { generateRecurringBookings, isOverlap, findOverlappingBooking, formatMonthYear, getWeeksInRange } from './utils/dateUtils';
 import { api } from './services/api';
 import { auth, googleProvider } from './services/firebase';
 import firebase from 'firebase/compat/app';
@@ -79,6 +79,12 @@ const App: React.FC = () => {
   // Modals
   const [isClassroomModalOpen, setIsClassroomModalOpen] = useState(false);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  
+  // PRINT MODAL STATE
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [printStartDate, setPrintStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [printEndDate, setPrintEndDate] = useState(format(addWeeks(new Date(), 4), 'yyyy-MM-dd'));
+  const [weeksToPrint, setWeeksToPrint] = useState<Date[]>([]);
   
   // Booking Form State
   const [editingBooking, setEditingBooking] = useState<Booking | undefined>(undefined);
@@ -273,7 +279,29 @@ const App: React.FC = () => {
   };
 
   const handlePrint = () => {
-    window.print();
+    setIsPrintModalOpen(true);
+  };
+
+  const handleConfirmPrint = (mode: 'current' | 'range') => {
+    setIsPrintModalOpen(false);
+    
+    if (mode === 'current') {
+      window.print();
+    } else {
+      // Range Mode
+      const start = new Date(printStartDate);
+      const end = new Date(printEndDate);
+      const weeks = getWeeksInRange(start, end);
+      setWeeksToPrint(weeks);
+      
+      // Allow render to update then print
+      setTimeout(() => {
+         document.body.classList.add('print-mode-range');
+         window.print();
+         document.body.classList.remove('print-mode-range');
+         setWeeksToPrint([]);
+      }, 500);
+    }
   };
 
   // --- CRUD Classroom ---
@@ -759,6 +787,89 @@ const App: React.FC = () => {
           onDelete={handleDeleteClassroom}
         />
       </Modal>
+
+      {/* PRINT OPTIONS MODAL */}
+      <Modal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} title="Print Options">
+         <div className="space-y-6">
+            <div className="p-4 bg-neu-base rounded-xl shadow-neu-pressed">
+               <h4 className="font-bold text-gray-600 mb-4 uppercase text-xs tracking-wide">Select Print Mode</h4>
+               <div className="flex gap-4">
+                  <button 
+                     onClick={() => handleConfirmPrint('current')}
+                     className="flex-1 py-3 px-4 bg-neu-base shadow-neu rounded-xl text-primary-600 font-bold hover:text-primary-700 active:shadow-neu-pressed transition-all"
+                  >
+                     Current Week
+                  </button>
+                  <button 
+                     onClick={() => {
+                        // Just toggle internal state to show range inputs, handled below
+                     }}
+                     className="flex-1 py-3 px-4 bg-neu-base shadow-neu rounded-xl text-gray-600 font-bold hover:text-gray-800 active:shadow-neu-pressed transition-all pointer-events-none opacity-50"
+                  >
+                     OR
+                  </button>
+               </div>
+            </div>
+
+            <div className="p-4 bg-neu-base rounded-xl shadow-neu-pressed border-t-2 border-primary-500">
+               <h4 className="font-bold text-gray-600 mb-4 uppercase text-xs tracking-wide">Print Date Range</h4>
+               <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                     <label className="text-xs text-gray-400 font-bold block mb-1">Start Date</label>
+                     <input 
+                        type="date" 
+                        value={printStartDate} 
+                        onChange={(e) => setPrintStartDate(e.target.value)}
+                        className="w-full px-3 py-2 bg-neu-base rounded-lg shadow-neu-pressed text-sm outline-none focus:ring-1 focus:ring-primary-400"
+                     />
+                  </div>
+                  <div>
+                     <label className="text-xs text-gray-400 font-bold block mb-1">End Date</label>
+                     <input 
+                        type="date" 
+                        value={printEndDate} 
+                        onChange={(e) => setPrintEndDate(e.target.value)}
+                        className="w-full px-3 py-2 bg-neu-base rounded-lg shadow-neu-pressed text-sm outline-none focus:ring-1 focus:ring-primary-400"
+                     />
+                  </div>
+               </div>
+               <button 
+                  onClick={() => handleConfirmPrint('range')}
+                  className="w-full py-3 bg-primary-600 text-white font-bold rounded-xl shadow-md hover:bg-primary-700 transition-all flex items-center justify-center gap-2"
+               >
+                  <Printer size={18} /> Print Range
+               </button>
+            </div>
+         </div>
+      </Modal>
+
+      {/* HIDDEN PRINT CONTAINER FOR RANGE PRINTING */}
+      <div id="print-container">
+         {weeksToPrint.map((weekDate, index) => (
+             <div key={index} className="break-after-page min-h-screen">
+                 <div className="p-6 border-b border-gray-300 mb-4">
+                    <h1 className="text-3xl font-bold mb-2">Classroom Booking Schedule</h1>
+                    <div className="flex justify-between items-end border-t border-gray-200 pt-4">
+                        <div><p className="text-sm text-gray-500 uppercase">Classroom</p><p className="text-2xl font-bold">{selectedClassroom?.name}</p></div>
+                        <div className="text-right"><p className="text-sm text-gray-500 uppercase">Week Of</p><p className="text-xl font-semibold">{format(weekDate, 'MMM d, yyyy')}</p></div>
+                    </div>
+                 </div>
+                 <div className="print-scale-down">
+                    <WeekCalendar 
+                        currentDate={weekDate}
+                        selectedClassroom={selectedClassroom}
+                        bookings={bookings}
+                        onSlotClick={() => {}}
+                        onBookingClick={() => {}}
+                        onBookingMove={() => {}}
+                        onBookingResize={() => {}}
+                        isGuest={true} // Read only for print
+                    />
+                 </div>
+             </div>
+         ))}
+      </div>
+
     </div>
   );
 };
