@@ -62,7 +62,34 @@
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
+
+        /* --- RANGE PRINT MODE STYLES --- */
+        
+        /* Force page break after each week */
+        .break-after-page {
+          page-break-after: always;
+          break-after: page;
+          display: block !important;
+          height: 100vh; /* Ensure it takes full height */
+          overflow: visible !important;
+        }
+
+        /* Logic to toggle views based on body class */
+        body.print-mode-range #root > div > header,
+        body.print-mode-range #root > div > main,
+        body.print-mode-range #root > div > div.print-only {
+            display: none !important; /* Hide standard app parts */
+        }
+
+        /* The special print container */
+        #print-container {
+            display: none;
+        }
+        body.print-mode-range #print-container {
+            display: block !important;
+        }
       }
+      
       body {
         background-color: #e0e5ec;
       }
@@ -72,17 +99,17 @@
         user-select: none;
       }
     </style>
-  <script type="importmap">
+<script type="importmap">
 {
   "imports": {
-    "react/": "https://aistudiocdn.com/react@^19.2.1/",
-    "react": "https://aistudiocdn.com/react@^19.2.1",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
-    "vite": "https://aistudiocdn.com/vite@^7.2.6",
-    "date-fns": "https://aistudiocdn.com/date-fns@^4.1.0",
     "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
-    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
+    "date-fns": "https://aistudiocdn.com/date-fns@^4.1.0",
+    "vite": "https://aistudiocdn.com/vite@^7.2.6",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "react": "https://aistudiocdn.com/react@^19.2.1"
   }
 }
 </script>
