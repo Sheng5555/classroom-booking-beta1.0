@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Booking, BookingType, HOURS_OF_OPERATION, UserProfile } from '../types';
 import { format, addMinutes, addMonths } from 'date-fns';
-import { Trash2, AlertTriangle, Save, Calendar, Check, ChevronDown, Lock } from 'lucide-react';
+import { Trash2, AlertTriangle, Save, Calendar, Check, ChevronDown, Lock, Layers, Copy } from 'lucide-react';
 
 interface BookingFormProps {
   initialDate?: Date;
   initialStartTime?: Date;
   existingBooking?: Booking;
   classroomId: string;
-  onSave: (bookingData: Partial<Booking>, recurrenceEnd?: Date) => void;
+  onSave: (bookingData: Partial<Booking>, recurrenceEnd?: Date, updateScope?: 'single' | 'series') => void;
   onDelete: (id: string, deleteSeries: boolean) => void;
   isOverlapWarning: boolean;
   setIsOverlapWarning: (val: boolean) => void;
@@ -40,12 +40,16 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   const isOwner = existingBooking ? existingBooking.userId === currentUser.uid : true;
   const canEdit = isAdmin || isOwner;
   const isReadOnly = isGuest || (existingBooking && !canEdit);
+  const isRecurringInstance = !!(existingBooking && existingBooking.seriesId);
 
   // Default states
   const [title, setTitle] = useState(existingBooking?.title || '');
   const [organizer, setOrganizer] = useState(existingBooking?.organizer || currentUser.displayName || '');
   const [bookingType, setBookingType] = useState<BookingType>(existingBooking?.type || BookingType.ONE_TIME);
   const [date, setDate] = useState(format(existingBooking?.startTime || initialDate || new Date(), 'yyyy-MM-dd'));
+  
+  // Update Scope State (Default to series if recurring, otherwise single)
+  const [updateScope, setUpdateScope] = useState<'single' | 'series'>('series');
   
   // Time state handling
   const getDefaultStart = () => {
@@ -121,14 +125,17 @@ export const BookingForm: React.FC<BookingFormProps> = ({
       return;
     }
 
-    // Basic conflict check
-    // If updating a series, we exclude the entire series from conflict checking
-    // If updating a single event, we exclude just that ID
+    // SCOPED CONFLICT CHECK
+    // If scope is 'single', we only exclude this specific ID.
+    // If scope is 'series', we exclude the entire series ID.
+    const excludeId = updateScope === 'single' ? existingBooking?.id : undefined;
+    const excludeSeriesId = updateScope === 'series' ? existingBooking?.seriesId : undefined;
+
     const hasConflict = checkConflict(
       s, 
       e, 
-      existingBooking?.id, 
-      existingBooking?.seriesId
+      excludeId, 
+      excludeSeriesId
     );
 
     if (hasConflict) {
@@ -153,7 +160,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
       endTime: e,
       classroomId,
       color: existingBooking?.color || getRandomColor(),
-    }, recurrenceEndDate);
+    }, recurrenceEndDate, updateScope);
   };
 
   const handlePreDelete = (type: 'single' | 'series') => {
@@ -174,17 +181,20 @@ export const BookingForm: React.FC<BookingFormProps> = ({
   useEffect(() => {
     const { s, e } = getStartEndDateObjects();
     if (s < e) {
-       // Pass seriesId to exclude conflicts with itself/series
+       // Scope logic for real-time check too
+       const excludeId = updateScope === 'single' ? existingBooking?.id : undefined;
+       const excludeSeriesId = updateScope === 'series' ? existingBooking?.seriesId : undefined;
+       
        const conflict = checkConflict(
          s, 
          e, 
-         existingBooking?.id, 
-         existingBooking?.seriesId
+         excludeId, 
+         excludeSeriesId
        );
        if (conflict) setError("This slot is already booked!");
        else setError(null);
     }
-  }, [date, startTime, endTime, checkConflict, existingBooking]);
+  }, [date, startTime, endTime, checkConflict, existingBooking, updateScope]);
 
   const inputClass = `w-full px-4 py-2.5 bg-neu-base rounded-xl shadow-neu-pressed outline-none focus:ring-1 focus:ring-primary-400 text-sm transition-all ${isReadOnly ? 'opacity-60 cursor-not-allowed' : ''}`;
   const labelClass = "block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide";
@@ -314,6 +324,7 @@ export const BookingForm: React.FC<BookingFormProps> = ({
         </div>
       </div>
 
+      {/* RECURRENCE END DATE */}
       {bookingType !== BookingType.ONE_TIME && (
         <div className="p-4 rounded-xl shadow-neu-pressed bg-neu-base/50">
           <div className="flex items-center gap-2 mb-2 text-primary-600">
@@ -329,6 +340,50 @@ export const BookingForm: React.FC<BookingFormProps> = ({
             required
             disabled={isReadOnly}
           />
+        </div>
+      )}
+
+      {/* UPDATE SCOPE SELECTOR (For recurring instances) */}
+      {!isReadOnly && isRecurringInstance && (
+        <div className="p-4 rounded-xl shadow-neu bg-neu-base/50 border border-white/40">
+           <label className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3 block">Update Options</label>
+           <div className="flex flex-col sm:flex-row gap-4">
+              <label className={`flex-1 relative cursor-pointer group`}>
+                 <input 
+                   type="radio" 
+                   name="updateScope" 
+                   className="peer sr-only" 
+                   checked={updateScope === 'single'}
+                   onChange={() => setUpdateScope('single')}
+                 />
+                 <div className="p-3 rounded-xl border-2 border-transparent bg-neu-base shadow-neu-sm peer-checked:border-primary-500 peer-checked:text-primary-700 transition-all text-gray-600 flex items-center gap-3">
+                    <div className="w-4 h-4 rounded-full border border-gray-400 peer-checked:border-primary-500 peer-checked:bg-primary-500 flex items-center justify-center">
+                        <div className="w-1.5 h-1.5 bg-white rounded-full opacity-0 peer-checked:opacity-100"></div>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-bold flex items-center gap-2"><Copy size={14}/> This Event Only</span>
+                    </div>
+                 </div>
+              </label>
+
+              <label className={`flex-1 relative cursor-pointer group`}>
+                 <input 
+                   type="radio" 
+                   name="updateScope" 
+                   className="peer sr-only" 
+                   checked={updateScope === 'series'}
+                   onChange={() => setUpdateScope('series')}
+                 />
+                 <div className="p-3 rounded-xl border-2 border-transparent bg-neu-base shadow-neu-sm peer-checked:border-primary-500 peer-checked:text-primary-700 transition-all text-gray-600 flex items-center gap-3">
+                    <div className="w-4 h-4 rounded-full border border-gray-400 peer-checked:border-primary-500 peer-checked:bg-primary-500 flex items-center justify-center">
+                        <div className="w-1.5 h-1.5 bg-white rounded-full opacity-0 peer-checked:opacity-100"></div>
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-sm font-bold flex items-center gap-2"><Layers size={14}/> Entire Series</span>
+                    </div>
+                 </div>
+              </label>
+           </div>
         </div>
       )}
 
