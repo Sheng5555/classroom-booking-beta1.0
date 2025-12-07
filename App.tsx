@@ -26,7 +26,7 @@ import { BookingForm } from './components/BookingForm';
 import { ClassroomManager } from './components/ClassroomManager';
 import { Login } from './components/Login';
 import { Booking, Classroom, BookingType, UserProfile } from './types';
-import { generateRecurringBookings, isOverlap, formatMonthYear } from './utils/dateUtils';
+import { generateRecurringBookings, isOverlap, findOverlappingBooking, formatMonthYear } from './utils/dateUtils';
 import { api } from './services/api';
 import { auth, googleProvider } from './services/firebase';
 import firebase from 'firebase/compat/app';
@@ -382,9 +382,9 @@ const App: React.FC = () => {
     }
   };
 
-  const checkConflictInApp = (start: Date, end: Date, excludeId?: string, excludeSeriesId?: string) => {
-    if (!selectedClassroom) return false;
-    return isOverlap(start, end, selectedClassroomId, bookings, excludeId, excludeSeriesId);
+  const checkConflictInApp = (start: Date, end: Date, excludeId?: string, excludeSeriesId?: string): Booking | null => {
+    if (!selectedClassroom) return null;
+    return findOverlappingBooking(start, end, selectedClassroomId, bookings, excludeId, excludeSeriesId) || null;
   };
 
   const handleSaveBooking = async (data: Partial<Booking>, recurrenceEnd?: Date, updateScope: 'single' | 'series' = 'series') => {
@@ -410,13 +410,9 @@ const App: React.FC = () => {
     if (data.type !== BookingType.ONE_TIME && recurrenceEnd) {
        
        // TIME SHIFT / BACKTRACKING LOGIC:
-       // If we are updating an existing series AND the user chose "Entire Series",
-       // we regenerate the series starting from the FIRST instance's date.
        if (editingBooking && editingBooking.seriesId && updateScope === 'series') {
           const seriesBookings = bookings.filter(b => b.seriesId === editingBooking.seriesId);
-          // Sort by start time to find the order
           seriesBookings.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
-          
           const index = seriesBookings.findIndex(b => b.id === editingBooking.id);
           
           if (index !== -1 && seriesBookings.length > 0) {
@@ -424,17 +420,13 @@ const App: React.FC = () => {
              let newSeriesEnd = new Date(baseBooking.endTime);
 
              if (data.type === BookingType.RECURRING_WEEKLY) {
-                 // Simple weekly backtrack
                  newSeriesStart = addWeeks(newSeriesStart, -index);
                  newSeriesEnd = addWeeks(newSeriesEnd, -index);
              } else if (data.type === BookingType.RECURRING_WEEKDAY) {
-                 // Mon-Fri backtrack: We need to go back 'index' amount of valid slots
                  let count = 0;
                  while (count < index) {
                      newSeriesStart = addDays(newSeriesStart, -1);
                      newSeriesEnd = addDays(newSeriesEnd, -1);
-                     // If we moved back onto a weekend, we don't count it as a "slot"
-                     // but we keep the date move.
                      if (!isWeekend(newSeriesStart)) {
                          count++;
                      }
@@ -446,16 +438,13 @@ const App: React.FC = () => {
           }
        }
        
-       // Only regenerate if scope is series or if it's a new booking
        if (updateScope === 'series' || !editingBooking) {
            newBookingsToAdd = generateRecurringBookings(baseBooking, recurrenceEnd, data.type!);
        } else {
-           // Scope is single, but it's part of a series (technically). 
-           // In "Single" mode for a recurring item, we treat it like a single item update below.
            newBookingsToAdd = []; 
        }
     } else {
-       // One-time or Single instance handling
+       // One-time
        newBookingsToAdd = [{
          ...baseBooking,
          id: editingBooking?.id || crypto.randomUUID(),
@@ -464,56 +453,47 @@ const App: React.FC = () => {
     }
 
     // --- BATCH CONFLICT CHECK ---
-    // Validate all generated instances against existing bookings
     for (const nb of newBookingsToAdd) {
-        const hasConflict = isOverlap(
+        const conflict = findOverlappingBooking(
             nb.startTime, 
             nb.endTime, 
             selectedClassroomId, 
             bookings, 
-            editingBooking?.id, // Exclude current booking ID if editing (important for one-time updates)
-            (editingBooking && updateScope === 'series') ? editingBooking.seriesId : undefined // Exclude old series if replacing
+            editingBooking?.id, 
+            (editingBooking && updateScope === 'series') ? editingBooking.seriesId : undefined 
         );
 
-        if (hasConflict) {
-            alert(`Conflict detected on ${format(nb.startTime, 'MMM d, yyyy')} at ${format(nb.startTime, 'h:mm a')}.\n\nThe series cannot be saved because it overlaps with an existing booking.`);
+        if (conflict) {
+            alert(
+              `Conflict detected on ${format(nb.startTime, 'MMM d, yyyy')} at ${format(nb.startTime, 'h:mm a')}.\n\n` +
+              `Overlaps with: ${conflict.title}\n` + 
+              `Time: ${format(conflict.startTime, 'h:mm a')} - ${format(conflict.endTime, 'h:mm a')}`
+            );
             return;
         }
     }
 
     try {
       if (editingBooking) {
-          // UPDATE EXISTING
-          
-          // Check if we are updating a series
           const isSeriesUpdate = (newBookingsToAdd.length > 1) && (updateScope === 'series');
           
           if (isSeriesUpdate) {
             if (editingBooking.seriesId) {
-                // DELETE OLD SERIES
                 await api.deleteBookingSeries(editingBooking.seriesId);
-                // Update Local State: Remove old series
                 setBookings(prev => prev.filter(b => b.seriesId !== editingBooking.seriesId));
             } else {
-                // DELETE SINGLE BOOKING (Converted to series)
                 await api.deleteBooking(editingBooking.id);
                 setBookings(prev => prev.filter(b => b.id !== editingBooking.id));
             }
             
-            // Add new series
             await api.createBookings(newBookingsToAdd);
             setBookings(prev => [...prev, ...newBookingsToAdd]);
 
           } else {
-             // SINGLE INSTANCE UPDATE
-             // This runs if:
-             // 1. It's a simple One-Time booking update.
-             // 2. It's a Recurring booking, but user selected "This Event Only".
-             
              const updatedInstance = {
                  ...baseBooking,
                  id: editingBooking.id,
-                 seriesId: editingBooking.seriesId // Keep linkage
+                 seriesId: editingBooking.seriesId 
              };
              
              await api.updateBooking(updatedInstance);
@@ -521,7 +501,6 @@ const App: React.FC = () => {
           }
 
       } else {
-          // Creating New
           await api.createBookings(newBookingsToAdd);
           setBookings(prev => [...prev, ...newBookingsToAdd]);
       }
@@ -550,8 +529,6 @@ const App: React.FC = () => {
     }
   };
 
-  // --- RENDERING ---
-
   if (isAuthLoading) {
      return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-neu-base text-gray-500 gap-4">
@@ -560,7 +537,6 @@ const App: React.FC = () => {
     );
   }
 
-  // >>> ACCESS DENIED SCREEN (Fallback if redirect takes a moment) <<<
   if (isAccessDenied) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-neu-base p-6">
@@ -573,7 +549,6 @@ const App: React.FC = () => {
     );
   }
 
-  // Login Screen
   if (!currentUser) {
     return (
       <Login 
@@ -584,7 +559,6 @@ const App: React.FC = () => {
     );
   }
 
-  // Loading Data Screen
   if (isLoading) {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center bg-neu-base text-gray-500 gap-4">
@@ -594,10 +568,8 @@ const App: React.FC = () => {
     );
   }
 
-  // MAIN APP
   return (
     <div className="flex flex-col h-full bg-neu-base text-slate-700 font-sans">
-      {/* Header */}
       <header className="bg-neu-base z-30 px-8 py-4 flex flex-col md:flex-row items-center justify-between no-print h-auto md:h-20 shrink-0 shadow-sm relative gap-4">
         <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8 w-full md:w-auto">
           <div className="flex items-center gap-3 text-gray-700">
@@ -649,7 +621,6 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Print Header */}
       <div className="hidden print-only p-6 border-b border-gray-300">
          <h1 className="text-3xl font-bold mb-4">Classroom Booking Schedule</h1>
          <div className="flex justify-between items-end border-t border-gray-200 pt-4">
@@ -658,7 +629,6 @@ const App: React.FC = () => {
          </div>
       </div>
 
-      {/* Main Content */}
       <main className="flex-1 overflow-hidden p-2 sm:p-6 md:p-8 print:p-0 print:overflow-visible print:h-auto print:block">
         <WeekCalendar 
           currentDate={currentDate}
@@ -672,7 +642,6 @@ const App: React.FC = () => {
         />
       </main>
 
-      {/* Modals */}
       <Modal isOpen={isBookingModalOpen} onClose={() => setIsBookingModalOpen(false)} title={editingBooking ? "Edit Booking" : "New Booking"}>
         <BookingForm
           initialDate={newBookingParams?.date}
