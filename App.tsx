@@ -616,7 +616,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full bg-neu-base text-slate-700 font-sans">
-      <header className="bg-neu-base z-30 px-8 py-4 flex flex-col md:flex-row items-center justify-between no-print h-auto md:h-20 shrink-0 shadow-sm relative gap-4">
+      <header className="bg-neu-base z-[60] px-8 py-4 flex flex-col md:flex-row items-center justify-between no-print h-auto md:h-20 shrink-0 shadow-sm relative gap-4">
         <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8 w-full md:w-auto">
           <div className="flex items-center gap-3 text-gray-700">
             <div className="p-2 bg-neu-base rounded-xl shadow-neu">
