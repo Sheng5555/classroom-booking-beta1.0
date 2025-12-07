@@ -463,6 +463,24 @@ const App: React.FC = () => {
        }];
     }
 
+    // --- BATCH CONFLICT CHECK ---
+    // Validate all generated instances against existing bookings
+    for (const nb of newBookingsToAdd) {
+        const hasConflict = isOverlap(
+            nb.startTime, 
+            nb.endTime, 
+            selectedClassroomId, 
+            bookings, 
+            editingBooking?.id, // Exclude current booking ID if editing (important for one-time updates)
+            (editingBooking && updateScope === 'series') ? editingBooking.seriesId : undefined // Exclude old series if replacing
+        );
+
+        if (hasConflict) {
+            alert(`Conflict detected on ${format(nb.startTime, 'MMM d, yyyy')} at ${format(nb.startTime, 'h:mm a')}.\n\nThe series cannot be saved because it overlaps with an existing booking.`);
+            return;
+        }
+    }
+
     try {
       if (editingBooking) {
           // UPDATE EXISTING
