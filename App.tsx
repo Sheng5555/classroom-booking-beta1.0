@@ -627,17 +627,18 @@ const App: React.FC = () => {
           <div className="h-px w-full md:h-10 md:w-px bg-gray-300/50 shadow-[1px_0_0_#fff]"></div>
           
           {/* Period Selector Toggle */}
-          <div className="relative">
+          <div className="relative z-[60]">
              <button 
                 onClick={() => setIsPeriodSelectorOpen(!isPeriodSelectorOpen)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all ${isPeriodSelectorOpen ? 'bg-primary-100 text-primary-700 shadow-neu-pressed' : 'bg-neu-base shadow-neu text-gray-600 hover:text-primary-600'}`}
+                title="Set the active date range for checking conflicts and loading data. Bookings outside this range are hidden."
              >
                 <Filter size={16} />
                 <span className="hidden sm:inline">Active Period</span>
              </button>
              
              {isPeriodSelectorOpen && (
-                <div className="absolute top-12 left-0 bg-neu-base p-4 rounded-xl shadow-neu z-50 w-64 border border-white/40 animate-in fade-in zoom-in-95 duration-200">
+                <div className="absolute top-12 left-0 bg-neu-base p-4 rounded-xl shadow-neu z-[100] w-64 border border-white/40 animate-in fade-in zoom-in-95 duration-200">
                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-3">Conflict Detection Range</h4>
                    <div className="space-y-3">
                       <div>
