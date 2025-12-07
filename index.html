@@ -15,6 +15,11 @@
         
         .no-print { display: none !important; }
         .print-only { display: block !important; }
+
+        /* Force hide the modal container during print */
+        .fixed.inset-0.z-\[200\] {
+          display: none !important;
+        }
         
         /* AGGRESSIVE RESET: Force block layout to allow natural page flow */
         html, body, #root, main { 
@@ -102,14 +107,14 @@
 <script type="importmap">
 {
   "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.1",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
-    "date-fns": "https://aistudiocdn.com/date-fns@^4.1.0",
-    "vite": "https://aistudiocdn.com/vite@^7.2.6",
-    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
     "react/": "https://aistudiocdn.com/react@^19.2.1/",
-    "react": "https://aistudiocdn.com/react@^19.2.1"
+    "date-fns": "https://aistudiocdn.com/date-fns@^4.1.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
+    "vite": "https://aistudiocdn.com/vite@^7.2.6",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
   }
 }
 </script>
