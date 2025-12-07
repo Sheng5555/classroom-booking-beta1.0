@@ -28,6 +28,22 @@ export const getWeekDays = (date: Date) => {
   return eachDayOfInterval({ start, end });
 };
 
+export const getWeeksInRange = (startDate: Date, endDate: Date): Date[] => {
+  const weeks: Date[] = [];
+  let current = getStartOfWeek(startDate);
+  // Ensure we include the week of the end date
+  const endLimit = getStartOfWeek(endDate);
+  
+  // Safety break
+  let safety = 0;
+  while (current <= endLimit && safety < 52) { // Limit to 1 year max for print safety
+    weeks.push(new Date(current));
+    current = addWeeks(current, 1);
+    safety++;
+  }
+  return weeks;
+};
+
 export const formatTime = (date: Date) => format(date, 'h:mm a');
 export const formatDateShort = (date: Date) => format(date, 'd');
 export const formatDateFull = (date: Date) => format(date, 'EEEE, MMM d');
