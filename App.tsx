@@ -50,7 +50,7 @@ const ADMIN_EMAILS = [
 // Add domains to this array. Users must match one of these domains (unless they are admin).
 const ALLOWED_DOMAINS = [
   'wagor.tc.edu.tw',
-  // 'gmail.com', // Example: Add more domains here
+  'gmail.com', // Example: Add more domains here
 ]; 
 
 const App: React.FC = () => {
