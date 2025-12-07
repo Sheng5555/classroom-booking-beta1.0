@@ -17,7 +17,9 @@ import {
   Loader2,
   LogOut,
   User as UserIcon,
-  ShieldAlert
+  ShieldAlert,
+  Filter,
+  RefreshCw
 } from 'lucide-react';
 
 import { WeekCalendar } from './components/WeekCalendar';
@@ -61,6 +63,18 @@ const App: React.FC = () => {
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [selectedClassroomId, setSelectedClassroomId] = useState<string>('');
   const [bookings, setBookings] = useState<Booking[]>([]);
+  
+  // --- Data Period State ---
+  // Default: Sept 1st of current year to Dec 31st of current year
+  const [periodStart, setPeriodStart] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), 8, 1); // Month is 0-indexed (8 = Sept)
+  });
+  const [periodEnd, setPeriodEnd] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), 11, 31); // 11 = Dec
+  });
+  const [isPeriodSelectorOpen, setIsPeriodSelectorOpen] = useState(false);
   
   // Modals
   const [isClassroomModalOpen, setIsClassroomModalOpen] = useState(false);
@@ -140,8 +154,7 @@ const App: React.FC = () => {
             photoURL: user.photoURL
           });
         }
-        
-        loadData();
+        // Load data is triggered by effect below when period changes or user changes
       } else {
         // Logged out
         setCurrentUser(null);
@@ -155,13 +168,26 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  // --- Data Loading Effect ---
+  // Reloads when User OR Period changes
+  useEffect(() => {
+    if (currentUser && !isAccessDenied) {
+      loadData();
+    }
+  }, [currentUser, periodStart, periodEnd, isAccessDenied]);
+
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [fetchedClassrooms, fetchedBookings] = await Promise.all([
-        api.fetchClassrooms(),
-        api.fetchBookings()
-      ]);
+      // Fetch Classrooms (always all)
+      const fetchedClassrooms = await api.fetchClassrooms();
+      
+      // Fetch Bookings (filtered by period)
+      // We set the time to start of day for start date, and end of day for end date
+      const startQuery = new Date(periodStart); startQuery.setHours(0,0,0,0);
+      const endQuery = new Date(periodEnd); endQuery.setHours(23,59,59,999);
+      
+      const fetchedBookings = await api.fetchBookings(startQuery, endQuery);
       
       setClassrooms(fetchedClassrooms);
       setBookings(fetchedBookings);
@@ -294,6 +320,13 @@ const App: React.FC = () => {
       alert("Guest accounts are Read-Only. Please Sign In with Google to create bookings.");
       return;
     }
+    
+    // Period check
+    if (date < periodStart || date > periodEnd) {
+       alert(`You are viewing a date outside your Active Period (${format(periodStart, 'MMM d')} - ${format(periodEnd, 'MMM d')}).\n\nPlease update the period in settings to book this date.`);
+       return;
+    }
+
     setEditingBooking(undefined);
     setInitialRecurrenceEndDate(undefined);
     const time = new Date(date);
@@ -389,6 +422,13 @@ const App: React.FC = () => {
 
   const handleSaveBooking = async (data: Partial<Booking>, recurrenceEnd?: Date, updateScope: 'single' | 'series' = 'series') => {
     if (!currentUser) return;
+    
+    // Period Warning for new bookings
+    if (data.startTime && (data.startTime < periodStart || data.startTime > periodEnd)) {
+        if (!confirm("This booking is outside your currently active Period. It will be saved but won't be visible until you change the period settings. Continue?")) {
+            return;
+        }
+    }
 
     let baseBooking: Omit<Booking, 'id'> = {
       title: data.title!,
@@ -454,22 +494,26 @@ const App: React.FC = () => {
 
     // --- BATCH CONFLICT CHECK ---
     for (const nb of newBookingsToAdd) {
-        const conflict = findOverlappingBooking(
-            nb.startTime, 
-            nb.endTime, 
-            selectedClassroomId, 
-            bookings, 
-            editingBooking?.id, 
-            (editingBooking && updateScope === 'series') ? editingBooking.seriesId : undefined 
-        );
-
-        if (conflict) {
-            alert(
-              `Conflict detected on ${format(nb.startTime, 'MMM d, yyyy')} at ${format(nb.startTime, 'h:mm a')}.\n\n` +
-              `Overlaps with: ${conflict.title}\n` + 
-              `Time: ${format(conflict.startTime, 'h:mm a')} - ${format(conflict.endTime, 'h:mm a')}`
+        // Only check conflicts if the generated booking is within the loaded period
+        // Otherwise we don't have the data to check against anyway
+        if (nb.startTime >= periodStart && nb.startTime <= periodEnd) {
+            const conflict = findOverlappingBooking(
+                nb.startTime, 
+                nb.endTime, 
+                selectedClassroomId, 
+                bookings, 
+                editingBooking?.id, 
+                (editingBooking && updateScope === 'series') ? editingBooking.seriesId : undefined 
             );
-            return;
+
+            if (conflict) {
+                alert(
+                  `Conflict detected on ${format(nb.startTime, 'MMM d, yyyy')} at ${format(nb.startTime, 'h:mm a')}.\n\n` +
+                  `Overlaps with: ${conflict.title}\n` + 
+                  `Time: ${format(conflict.startTime, 'h:mm a')} - ${format(conflict.endTime, 'h:mm a')}`
+                );
+                return;
+            }
         }
     }
 
@@ -502,7 +546,9 @@ const App: React.FC = () => {
 
       } else {
           await api.createBookings(newBookingsToAdd);
-          setBookings(prev => [...prev, ...newBookingsToAdd]);
+          // Only add to local state if it falls within the period
+          const visibleNewBookings = newBookingsToAdd.filter(b => b.startTime >= periodStart && b.startTime <= periodEnd);
+          setBookings(prev => [...prev, ...visibleNewBookings]);
       }
       setIsBookingModalOpen(false);
     } catch (e) {
@@ -579,6 +625,50 @@ const App: React.FC = () => {
             <h1 className="text-2xl font-bold tracking-tight text-gray-800">Classroom Booking</h1>
           </div>
           <div className="h-px w-full md:h-10 md:w-px bg-gray-300/50 shadow-[1px_0_0_#fff]"></div>
+          
+          {/* Period Selector Toggle */}
+          <div className="relative">
+             <button 
+                onClick={() => setIsPeriodSelectorOpen(!isPeriodSelectorOpen)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wide transition-all ${isPeriodSelectorOpen ? 'bg-primary-100 text-primary-700 shadow-neu-pressed' : 'bg-neu-base shadow-neu text-gray-600 hover:text-primary-600'}`}
+             >
+                <Filter size={16} />
+                <span className="hidden sm:inline">Active Period</span>
+             </button>
+             
+             {isPeriodSelectorOpen && (
+                <div className="absolute top-12 left-0 bg-neu-base p-4 rounded-xl shadow-neu z-50 w-64 border border-white/40 animate-in fade-in zoom-in-95 duration-200">
+                   <h4 className="text-xs font-bold text-gray-500 uppercase mb-3">Conflict Detection Range</h4>
+                   <div className="space-y-3">
+                      <div>
+                        <label className="text-xs text-gray-400 font-bold block mb-1">Start Date</label>
+                        <input 
+                           type="date" 
+                           value={format(periodStart, 'yyyy-MM-dd')}
+                           onChange={(e) => e.target.value && setPeriodStart(new Date(e.target.value))}
+                           className="w-full px-3 py-2 bg-neu-base rounded-lg shadow-neu-pressed text-sm outline-none focus:ring-1 focus:ring-primary-400"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-400 font-bold block mb-1">End Date</label>
+                        <input 
+                           type="date" 
+                           value={format(periodEnd, 'yyyy-MM-dd')}
+                           onChange={(e) => e.target.value && setPeriodEnd(new Date(e.target.value))}
+                           className="w-full px-3 py-2 bg-neu-base rounded-lg shadow-neu-pressed text-sm outline-none focus:ring-1 focus:ring-primary-400"
+                        />
+                      </div>
+                      <button 
+                         onClick={() => setIsPeriodSelectorOpen(false)}
+                         className="w-full py-2 bg-primary-600 text-white rounded-lg shadow-md hover:bg-primary-700 text-xs font-bold uppercase mt-2 flex items-center justify-center gap-2"
+                      >
+                         <RefreshCw size={12} /> Apply & Reload
+                      </button>
+                   </div>
+                </div>
+             )}
+          </div>
+
           <div className="flex items-center gap-4 w-full md:w-auto justify-center">
              <button onClick={handlePrevWeek} className="w-10 h-10 flex items-center justify-center rounded-xl bg-neu-base shadow-neu text-gray-600 hover:text-primary-600 active:shadow-neu-pressed transition-all"><ChevronLeft size={20} /></button>
              <div className="flex flex-col items-center min-w-[160px] px-4 py-2 bg-neu-base rounded-xl shadow-neu-pressed">
