@@ -94,8 +94,21 @@ export const api = {
 
   // --- Bookings ---
 
-  async fetchBookings(): Promise<Booking[]> {
-    const snapshot = await db.collection(COLLECTIONS.BOOKINGS).get();
+  // Updated to support Date Range Filtering
+  async fetchBookings(startDate?: Date, endDate?: Date): Promise<Booking[]> {
+    let query = db.collection(COLLECTIONS.BOOKINGS).orderBy('startTime');
+
+    if (startDate && endDate) {
+      // Convert JS Date to Firestore Timestamp for the query
+      const startTimestamp = firebase.firestore.Timestamp.fromDate(startDate);
+      const endTimestamp = firebase.firestore.Timestamp.fromDate(endDate);
+      
+      query = query
+        .where('startTime', '>=', startTimestamp)
+        .where('startTime', '<=', endTimestamp);
+    }
+
+    const snapshot = await query.get();
     return snapshot.docs.map(convertDocToBooking);
   },
 
