@@ -56,6 +56,25 @@ export const isOverlap = (
   });
 };
 
+// Returns the actual booking object that conflicts, or undefined
+export const findOverlappingBooking = (
+  newStart: Date, 
+  newEnd: Date, 
+  classroomId: string, 
+  existingBookings: Booking[],
+  excludeBookingId?: string,
+  excludeSeriesId?: string
+): Booking | undefined => {
+  return existingBookings.find(b => {
+    if (b.classroomId !== classroomId) return false;
+    
+    if (excludeBookingId && b.id === excludeBookingId) return false;
+    if (excludeSeriesId && b.seriesId === excludeSeriesId) return false;
+    
+    return newStart < b.endTime && newEnd > b.startTime;
+  });
+};
+
 export const generateTimeSlots = (startHour: number, endHour: number) => {
   const slots = [];
   for (let i = startHour; i < endHour; i++) {
